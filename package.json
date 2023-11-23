@@ -1,10 +1,16 @@
 {
-  "author": "Lester Fernandez",
+  "author": "Joseph Wylie",
   "version": "1.0.0",
   "main": "index.js",
   "license": "MIT",
   "private": "true",
   "workspaces": [
     "packages/*"
-  ]
+  ],
+  "scripts": {
+    "start": "concurrently \"cd packages && cd server && yarn start\" \"cd packages && cd client && yarn start\""
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  }
 }

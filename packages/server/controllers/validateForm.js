@@ -1,4 +1,4 @@
-const { formSchema } = require("@whatsapp-clone/common");
+const { formSchema } = require("@revolution-game/common");
 
 const validateForm = (req, res) => {
   const formData = req.body;

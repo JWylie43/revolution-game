@@ -1,6 +1,6 @@
 import { ArrowBackIcon } from "@chakra-ui/icons";
 import { Button, ButtonGroup, Heading, VStack } from "@chakra-ui/react";
-import { formSchema } from "@whatsapp-clone/common";
+import { formSchema } from "@revolution-game/common";
 import { Form, Formik } from "formik";
 import { useNavigate } from "react-router";
 import TextField from "./TextField";
