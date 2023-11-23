@@ -6,16 +6,15 @@ const cors = require("cors")
 const authRouter = require("./routers/authRouter")
 const session = require("express-session")
 require("dotenv").config()
-
+const RedisStore = require("connect-redis").default
 const server = require("http").createServer(app)
-
+const redisClient = require("./redis")
 const io = new Server(server, {
   cors: {
     origin: "http://localhost:3000",
     credentials: "true"
   }
 })
-
 app.use(helmet())
 app.use(
   cors({
@@ -29,6 +28,7 @@ app.use(
     secret: process.env.COOKIE_SECRET,
     credentials: true,
     name: "sid",
+    store: new RedisStore({ client: redisClient }),
     resave: false,
     saveUninitialized: false,
     cookie: {
