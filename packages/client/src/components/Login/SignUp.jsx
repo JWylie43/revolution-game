@@ -4,8 +4,10 @@ import { formSchema } from "@revolution-game/common"
 import { Form, Formik } from "formik"
 import { useNavigate } from "react-router"
 import TextField from "./TextField"
+import { useAccountProvider } from "../AccountContext"
 
 const SignUp = () => {
+  const { setUser } = useAccountProvider()
   const navigate = useNavigate()
   return (
     <Formik
@@ -17,8 +19,7 @@ const SignUp = () => {
           method: "POST",
           credentials: "include",
           headers: {
-            "Content-Type": "application/json",
-            Accepts: "application/json"
+            "Content-Type": "application/json"
           },
           body: JSON.stringify(values)
         })
@@ -29,14 +30,17 @@ const SignUp = () => {
         }
         const data = await response.json()
         console.log("data", data)
-        if (!data) return
+        if (!data?.loggedIn) return
+        setUser(data)
+
+        navigate("/home")
       }}
     >
       <VStack as={Form} w={{ base: "90%", md: "500px" }} m="auto" justify="center" h="100vh" spacing="1rem">
         <Heading>Sign Up</Heading>
         <TextField name="username" placeholder="Enter username" autoComplete="off" label="Username" />
 
-        <TextField name="password" placeholder="Enter password" autoComplete="off" label="Password" />
+        <TextField name="password" placeholder="Enter password" autoComplete="off" label="Password" type="password" />
 
         <ButtonGroup pt="1rem">
           <Button colorScheme="teal" type="submit">

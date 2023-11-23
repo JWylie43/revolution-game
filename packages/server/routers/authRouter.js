@@ -4,26 +4,36 @@ const router = express.Router()
 const pool = require("../db")
 const bcrypt = require("bcrypt")
 
-router.post("/login", async (req, res) => {
-  await validateForm(req, res)
-  const { username, password } = req.body
-  const queryResponse = (await pool.query(`SELECT id, username,passhash FROM users WHERE users.username = '${username}';`))
-    .rows[0]
-  if (!queryResponse) {
-    res.json({ loggedIn: false, status: "Wrong username or password!" })
-    return
-  }
-  const matchingPassword = await bcrypt.compare(password, queryResponse.passhash)
-  if (matchingPassword) {
-    req.session.user = {
-      username,
-      id: queryResponse.id
+router
+  .route("/login")
+  .get(async (req, res) => {
+    if (req.session.user && req.session.user.username) {
+      res.json({ loggedIn: true, username: req.session.user.username })
+    } else {
+      res.json({ loggedIn: false })
     }
-    res.json({ loggedIn: true, username })
-    return
-  }
-  res.json({ loggedIn: false, status: "Wrong username or password!" })
-})
+  })
+  .post(async (req, res) => {
+    await validateForm(req, res)
+    console.log("session", req.session)
+    const { username, password } = req.body
+    const queryResponse = (await pool.query(`SELECT id, username,passhash FROM users WHERE users.username = '${username}';`))
+      .rows[0]
+    if (!queryResponse) {
+      res.json({ loggedIn: false, status: "Wrong username or password!" })
+      return
+    }
+    const matchingPassword = await bcrypt.compare(password, queryResponse.passhash)
+    if (matchingPassword) {
+      req.session.user = {
+        username,
+        id: queryResponse.id
+      }
+      res.json({ loggedIn: true, username })
+      return
+    }
+    res.json({ loggedIn: false, status: "Wrong username or password!" })
+  })
 
 router.post("/register", async (req, res) => {
   await validateForm(req, res)
