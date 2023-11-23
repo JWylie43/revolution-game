@@ -1,19 +1,21 @@
-const { formSchema } = require("@revolution-game/common");
+const { formSchema } = require("@revolution-game/common")
 
-const validateForm = (req, res) => {
-  const formData = req.body;
-  formSchema
-    .validate(formData)
-    .catch(err => {
-      res.status(422).send();
-      console.log(err.errors);
-    })
-    .then(valid => {
-      if (valid) {
-        res.status(200).send();
-        console.log("form is good");
-      }
-    });
-};
+const validateForm = async (req, res) => {
+  try {
+    const formData = req.body
+    const valid = await formSchema.validate(formData)
 
-module.exports = validateForm;
+    if (valid) {
+      console.log("form is good")
+    } else {
+      // Handle the case where the form is not valid
+      res.status(422).send()
+    }
+  } catch (err) {
+    // Handle validation errors
+    console.error(err.errors)
+    res.status(500).send() // or handle the error in a way that makes sense for your application
+  }
+}
+
+module.exports = validateForm

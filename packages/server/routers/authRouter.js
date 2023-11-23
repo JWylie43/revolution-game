@@ -1,12 +1,43 @@
-const express = require("express");
-const validateForm = require("../controllers/validateForm");
-const router = express.Router();
+const express = require("express")
+const validateForm = require("../controllers/validateForm")
+const router = express.Router()
+const pool = require("../db")
+const bcrypt = require("bcrypt")
 
-router.post("/login", (req, res) => {
-  validateForm(req, res);
-});
+router.post("/login", async (req, res) => {
+  await validateForm(req, res)
+  const { username, password } = req.body
+  const queryResponse = (await pool.query(`SELECT id, username,passhash FROM users WHERE users.username = '${username}';`))
+    .rows[0]
+  if (!queryResponse) {
+    res.json({ loggedIn: false, status: "Wrong username or password!" })
+    return
+  }
+  const matchingPassword = await bcrypt.compare(password, queryResponse.passhash)
+  if (matchingPassword) {
+    req.session.user = {
+      username,
+      id: queryResponse.id
+    }
+    res.json({ loggedIn: true, username })
+    return
+  }
+  res.json({ loggedIn: false, status: "Wrong username or password!" })
+})
 
-router.post("/signup", (req, res) => {
-  validateForm(req, res);
-});
-module.exports = router;
+router.post("/register", async (req, res) => {
+  await validateForm(req, res)
+  const { username, password } = req.body
+  const existingUser = (await pool.query(`SELECT username FROM users WHERE username='${username}';`)).rows.length > 0
+  if (existingUser) {
+    res.json({ loggedIn: false, status: "Username Taken" })
+    return
+  }
+  const hashedPass = await bcrypt.hash(password, 10)
+  const newUserQuery = await pool.query(
+    `INSERT INTO users (username,passhash) values ('${username}','${hashedPass}') RETURNING id,username;`
+  )
+  req.session.user = { username, id: newUserQuery.rows[0].id }
+  res.json({ loggedIn: true, username })
+})
+module.exports = router

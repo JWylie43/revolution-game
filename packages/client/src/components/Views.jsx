@@ -1,6 +1,6 @@
-import { Route, Routes } from "react-router-dom";
-import Login from "./Login/Login";
-import SignUp from "./Login/SignUp";
+import { Route, Routes } from "react-router-dom"
+import Login from "./Login/Login"
+import SignUp from "./Login/SignUp"
 
 const Views = () => {
   return (
@@ -9,7 +9,7 @@ const Views = () => {
       <Route path="/register" element={<SignUp />} />
       <Route path="*" element={<Login />} />
     </Routes>
-  );
-};
+  )
+}
 
-export default Views;
+export default Views

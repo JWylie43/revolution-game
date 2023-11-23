@@ -1,5 +1,5 @@
-import ToggleColorMode from "./components/ToggleColorMode";
-import Views from "./components/Views";
+import ToggleColorMode from "./components/ToggleColorMode"
+import Views from "./components/Views"
 
 function App() {
   return (
@@ -7,7 +7,7 @@ function App() {
       <Views />
       <ToggleColorMode />
     </>
-  );
+  )
 }
 
-export default App;
+export default App

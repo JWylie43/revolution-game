@@ -5,9 +5,13 @@
   "license": "MIT",
   "dependencies": {
     "@revolution-game/common": "1.0.0",
+    "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
     "express": "^4.17.1",
+    "express-session": "^1.17.3",
     "helmet": "^4.6.0",
+    "pg": "^8.11.3",
     "socket.io": "^4.4.0"
   },
   "scripts": {
