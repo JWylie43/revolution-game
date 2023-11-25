@@ -1,24 +1,25 @@
-import { Route, Routes } from "react-router-dom"
-import Login from "./Login/Login"
-import SignUp from "./Login/SignUp"
-import { Text } from "@chakra-ui/react"
-import { PrivateRoutes } from "./PrivateRoutes"
-import { useAccountProvider } from "./AccountContext"
-const Views = () => {
+import { Navigate, Outlet, Route, Routes } from "react-router-dom"
+import { Home } from "./Home/Home"
+import { Lobby } from "./Home/Lobby"
+import { Login } from "./Login/Login"
+import { SignUp } from "./Login/SignUp"
+import { useAccountProvider } from "../providers/AccountProvider"
+
+const PrivateRoutes = () => {
   const { user } = useAccountProvider()
-  console.log("user", user)
-  return user.loggedIn === null ? (
-    <Text>...Loading</Text>
-  ) : (
+  return user && user.loggedIn ? <Outlet /> : <Navigate to="/" />
+}
+
+export const Views = () => {
+  return (
     <Routes>
       <Route path="/" element={<Login />} />
       <Route path="/register" element={<SignUp />} />
       <Route element={<PrivateRoutes />}>
-        <Route path="/home" element={<Text>Welcome Home</Text>} />
+        <Route path="/home" element={<Home />} />
+        <Route path="/home/:roomId" element={<Lobby />} />
       </Route>
       <Route path="*" element={<Login />} />
     </Routes>
   )
 }
-
-export default Views

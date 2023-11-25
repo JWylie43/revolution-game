@@ -1,9 +1,10 @@
 const express = require("express")
-const validateForm = require("../controllers/validateForm")
-const { rateLimiter } = require("../controllers/rateLimiter")
+const validateForm = require("../controllers/express/validateForm")
 const router = express.Router()
+const { handleLogin, attemptLogin, attemptRegister, logoutDelete } = require("../controllers/authController")
+const rateLimiter = require("../controllers/express/rateLimiter")
 
-const { handleLoginGet, handleLoginPost, handleRegisterPost } = require("../controllers/authController")
-router.route("/login").get(handleLoginGet).post(validateForm, rateLimiter, handleLoginPost)
-router.post("/register", validateForm, rateLimiter, handleRegisterPost)
+router.route("/login").get(handleLogin).post(validateForm, rateLimiter(60, 10), attemptLogin)
+router.post("/signup", validateForm, rateLimiter(30, 4), attemptRegister)
+router.delete("/logout", rateLimiter(30, 4), logoutDelete)
 module.exports = router

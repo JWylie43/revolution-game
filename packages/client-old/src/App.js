@@ -1,6 +1,7 @@
+import { AccountProvider } from "./components/AccountContext"
 import ToggleColorMode from "./components/ToggleColorMode"
 import Views from "./components/Views"
-import { AccountProvider } from "./components/AccountContext"
+
 function App() {
   return (
     <AccountProvider>

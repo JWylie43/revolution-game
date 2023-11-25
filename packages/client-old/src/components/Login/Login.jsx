@@ -3,10 +3,10 @@ import { formSchema } from "@revolution-game/common"
 import { Form, Formik } from "formik"
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { useAccountProvider } from "../../providers/AccountProvider"
+import { useAccountProvider } from "../AccountContext"
 import TextField from "../TextField"
 
-export const Login = () => {
+const Login = () => {
   const { setUser } = useAccountProvider()
   const [error, setError] = useState(null)
   const navigate = useNavigate()
@@ -17,7 +17,7 @@ export const Login = () => {
       onSubmit={async (values, actions) => {
         try {
           actions.resetForm()
-          const loginResponse = await fetch("http://192.168.1.118:4000/auth/login", {
+          const loginResponse = await fetch("http://localhost:4000/auth/login", {
             method: "POST",
             credentials: "include",
             headers: {
@@ -60,3 +60,5 @@ export const Login = () => {
     </Formik>
   )
 }
+
+export default Login

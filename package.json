@@ -8,12 +8,12 @@
     "packages/*"
   ],
   "scripts": {
-    "start": "concurrently \"cd packages && cd server && yarn start\" \"cd packages && cd client && yarn start\""
-  },
-  "dependencies": {
-    "concurrently": "^8.2.2"
+    "server": "yarn workspace @revolution-game/server start",
+    "client": "yarn workspace @revolution-game/client start",
+    "start": "concurrently \"yarn server\" \"yarn client\""
   },
   "devDependencies": {
+    "concurrently": "^8.2.2",
     "prettier": "^3.1.0"
   }
 }

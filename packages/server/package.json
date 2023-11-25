@@ -1,8 +1,12 @@
 {
   "name": "@revolution-game/server",
   "version": "1.0.0",
+  "private": "true",
   "main": "index.js",
   "license": "MIT",
+  "scripts": {
+    "start": "nodemon index.js"
+  },
   "dependencies": {
     "@revolution-game/common": "1.0.0",
     "bcrypt": "^5.1.1",
@@ -14,10 +18,8 @@
     "helmet": "^4.6.0",
     "ioredis": "^5.3.2",
     "pg": "^8.11.3",
-    "socket.io": "^4.4.0"
-  },
-  "scripts": {
-    "start": "nodemon index.js"
+    "socket.io": "^4.4.0",
+    "uuid": "^8.3.2"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
