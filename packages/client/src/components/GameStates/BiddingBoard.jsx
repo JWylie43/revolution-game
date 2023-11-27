@@ -1,8 +1,11 @@
-import { Button, Grid, GridItem, IconButton } from "@chakra-ui/react"
+import { Button, Grid, GridItem, IconButton, Text } from "@chakra-ui/react"
 import { socket } from "../../socket"
-import { useGameProvider } from "../../providers/GameProvider"
+import { GameContext, useGameProvider } from "../../providers/GameProvider"
 import { GiPunch, GiTwoCoins } from "react-icons/gi"
 import { MdMailLock } from "react-icons/md"
+import { createContext, useContext, useState } from "react"
+import { BidIcon } from "./BidIcon"
+import { BidSpace } from "./BidSpace"
 
 const benefits = {
   oneSupport: {
@@ -177,16 +180,58 @@ const bidBoard = [
 
 export const BiddingBoard = () => {
   const { socketUser, setSocketUser, players, setPlayers, gameState, setGameState } = useGameProvider()
-  console.log("bidBoard", bidBoard)
+  if (socketUser.bids) {
+    const playerBids = JSON.parse(socketUser.bids)
+    const startingTokens = { gold: 0, blackmail: 0, force: 0 }
+  }
+  const [playerBids, setPlayerBids] = useState(socketUser.bids ? JSON.parse(socketUser.bids) : {})
+  const [startingTokens, setStartingTokens] = useState(
+    socketUser.bids ? { gold: 0, blackmail: 0, force: 0 } : { gold: 3, blackmail: 1, force: 1 }
+  )
+  const [remainingTokens, setRemainingTokens] = useState(startingTokens)
+  console.log("socketUser", socketUser)
+
+  const stateVariables = {
+    playerBids,
+    setPlayerBids,
+    remainingTokens,
+    setRemainingTokens
+  }
   return (
     <div>
       <Button
         onClick={() => {
-          socket.emit("submitBids")
+          if (
+            Object.values(remainingTokens).reduce((current, result) => {
+              result += current
+              return result
+            }, 0) === 0
+          ) {
+            console.log("submit playerBids", playerBids)
+            socket.emit("submitBids", playerBids)
+          }
         }}
       >
         Submit Bids
       </Button>
+      <Button
+        onClick={() => {
+          setPlayerBids({})
+          setRemainingTokens(startingTokens)
+        }}
+      >
+        Clear Bids
+      </Button>
+      <Text>
+        Remaining Tokens:
+        {Object.entries(remainingTokens).map(([token, count]) => {
+          return (
+            <Text>
+              {token}: {count}
+            </Text>
+          )
+        })}
+      </Text>
       <Grid
         templateRows="repeat(3, 1fr)"
         templateColumns="repeat(4, 1fr)"
@@ -194,30 +239,7 @@ export const BiddingBoard = () => {
         p={3} // Adjust padding as needed
       >
         {bidBoard.map((space) => {
-          console.log("space", space)
-          let backgroundColor = ""
-          if (space.noForce) {
-            backgroundColor = "red"
-          } else if (space.noBlackmail) {
-            backgroundColor = "black"
-          } else {
-            backgroundColor = "#6F4E37"
-          }
-
-          return (
-            <GridItem
-              key={space.id}
-              style={{ border: "solid black 1px", textAlign: "center", backgroundColor: backgroundColor }}
-            >
-              {space.name}
-              {space.benefits.map((benefit) => {
-                return <div>{benefit.name}</div>
-              })}
-              <IconButton bg="yellow" icon={<GiPunch />} />
-              <IconButton bg="yellow" icon={<GiTwoCoins />} />
-              <IconButton bg="yellow" icon={<MdMailLock />} />
-            </GridItem>
-          )
+          return <BidSpace {...{ space, ...stateVariables }} />
         })}
       </Grid>
     </div>

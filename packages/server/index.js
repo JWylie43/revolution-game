@@ -99,11 +99,13 @@ io.on("connect", async (socket) => {
     await setPlayersInRoom({ roomId: room })
     socket.leave(room)
   })
-  socket.on("submitBids", async () => {
-    await redisClient.hmset(`username:${socket.user.username}`, ["submittedBids", true])
+  socket.on("submitBids", async (bids) => {
+    await redisClient.hmset(`username:${socket.user.username}`, ["submittedBids", true, "bids", JSON.stringify(bids)])
     socket.user = await redisClient.hgetall(`username:${socket.user.username}`)
+    console.log("socket", socket.user)
     socket.emit("updateSocketUser", socket.user)
     const playersInRoom = await setPlayersInRoom({ roomId: socket.user.room })
+    console.log("playersInRoom", playersInRoom)
     if (
       playersInRoom.every((player) => {
         return player.submittedBids === "true" || player.submittedBids === true
