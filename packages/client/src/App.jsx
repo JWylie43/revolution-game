@@ -1,12 +1,11 @@
-import { useState } from "react"
 import { AccountProvider } from "./providers/AccountProvider"
 import { ToggleColorMode } from "./components/ToggleColorMode"
-import { Views } from "./components/Views"
+import { Authenticate } from "./components/Authenticate"
 
 export const App = () => {
   return (
     <AccountProvider>
-      <Views />
+      <Authenticate />
       <ToggleColorMode />
     </AccountProvider>
   )

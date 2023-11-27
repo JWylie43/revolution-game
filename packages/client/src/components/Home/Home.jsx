@@ -1,58 +1,91 @@
-import { Button, VStack, Flex, Box } from "@chakra-ui/react"
-import { createContext, useState } from "react"
+import { Button, VStack, Flex, Box, Tabs, TabList, TabPanels, Tab, TabPanel, Container, Text } from "@chakra-ui/react"
+import { createContext, useEffect, useState } from "react"
 import { useSocketSetup } from "./useSocketSetup"
 import { MoonIcon, SunIcon } from "@chakra-ui/icons"
 import { useAccountProvider } from "../../providers/AccountProvider"
-import { useNavigate } from "react-router-dom"
+import { useGameProvider } from "../../providers/GameProvider"
+import { Route, Routes, useLocation, useNavigate } from "react-router-dom"
+import { GameRouter } from "./GameRouter"
 import { socket } from "../../socket"
+import { ipaddress } from "@revolution-game/common"
 
-export const Home = () => {
-  useSocketSetup()
+export const Home = ({ setAction }) => {
+  const { socketUser, setSocketUser, players, setPlayers, gameState } = useGameProvider()
+  const { user, setUser } = useAccountProvider()
+  const location = useLocation()
   const navigate = useNavigate()
-  const { setUser } = useAccountProvider()
+
+  useSocketSetup()
+  useEffect(() => {
+    if (!socketUser.username) {
+      return
+    }
+    if (socketUser.room && !location.hash) {
+      if (gameState) {
+        socket.emit("leaveGame")
+      } else {
+        window.location.reload()
+      }
+    }
+    if (!socketUser.room && location.hash) {
+      console.log("socketUser", socketUser)
+      if (socketUser.rejoinGame) {
+        socket.emit("rejoinGame", location.hash.replace("#", ""))
+        return
+      }
+      socket.emit("joinGame", location.hash.replace("#", ""), () => {
+        navigate("/")
+      })
+    }
+  }, [socketUser, location, gameState])
+  if (!socketUser.connected) {
+    return <div>connecting...</div>
+  }
+  if (socketUser.room) {
+    return (
+      <>
+        <Button
+          onClick={() => {
+            navigate("/")
+          }}
+        >
+          Leave Game
+        </Button>
+        <GameRouter />
+      </>
+    )
+  }
+  const onLogout = async () => {
+    const logoutRequest = await fetch(`http://${ipaddress}:4000/auth/logout`, {
+      method: "DELETE",
+      credentials: "include"
+    })
+    if (!logoutRequest || !logoutRequest.ok || logoutRequest.status >= 400) {
+      return
+    }
+    const data = await logoutRequest.json()
+    if (!data) return
+    if (!data.loggedOut) {
+      console.error(data.status)
+    }
+    if (data.loggedOut) {
+      setUser({ loggedIn: false })
+      setAction("login")
+    }
+  }
+  const onCreateRoom = () => {
+    const roomId = `room-${Math.floor(Math.random() * 9000) + 1000}`
+    navigate(`/#${roomId}`)
+  }
+  const onRejoinGame = () => {
+    navigate(`/#${socketUser.rejoinGame}`)
+  }
   return (
-    <Flex>
-      <Box w="25%" p={4}>
-        <VStack spacing={4} align="stretch">
-          <Button
-            colorScheme="blue"
-            onClick={async () => {
-              const logoutRequest = await fetch("http://192.168.1.118:4000/auth/logout", {
-                method: "DELETE",
-                credentials: "include"
-              })
-              if (!logoutRequest || !logoutRequest.ok || logoutRequest.status >= 400) {
-                return
-              }
-              const data = await logoutRequest.json()
-              if (!data) return
-              if (!data.loggedOut) {
-                console.error(data.status)
-              }
-              if (data.loggedOut) {
-                setUser({ loggedIn: false })
-                // navigate("/login")
-              }
-            }}
-          >
-            Logout
-          </Button>
-          <Button
-            colorScheme="green"
-            onClick={() => {
-              const roomId = `room-${Math.floor(Math.random() * 9000) + 1000}`
-              navigate(`/home/${roomId}`)
-              // socket.emit("createRoom", { roomId }, (props) => {
-              //   console.log("props", props)
-              // })
-            }}
-          >
-            Create a room
-          </Button>
-          <Button colorScheme="red">Join Room 1</Button>
-        </VStack>
-      </Box>
-      <Box w="75%" p={4}></Box>
-    </Flex>
+    <>
+      <Text>User: {socketUser.username}</Text>
+      <Button onClick={onLogout}>Logout</Button>
+      <Button onClick={onCreateRoom}>Create Room</Button>
+      {socketUser.rejoinGame ? <Button onClick={onRejoinGame}>Rejoin Game</Button> : ""}
+    </>
   )
 }

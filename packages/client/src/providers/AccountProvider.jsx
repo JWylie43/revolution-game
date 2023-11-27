@@ -1,5 +1,5 @@
-import { useNavigate, useLocation } from "react-router-dom"
 import { createContext, useState, useEffect, useContext } from "react"
+import { ipaddress } from "@revolution-game/common"
 
 export const AccountContext = createContext()
 export const useAccountProvider = () => {
@@ -7,12 +7,10 @@ export const useAccountProvider = () => {
 }
 export const AccountProvider = ({ children }) => {
   const [user, setUser] = useState({ loggedIn: null })
-  const navigate = useNavigate()
-  const location = useLocation()
   useEffect(() => {
     const reloadSession = async () => {
       try {
-        const userResponse = await fetch("http://192.168.1.118:4000/auth/login", {
+        const userResponse = await fetch(`http://${ipaddress}:4000/auth/login`, {
           credentials: "include"
         })
         if (!userResponse || !userResponse.ok || userResponse.status >= 400) {
@@ -25,11 +23,6 @@ export const AccountProvider = ({ children }) => {
           return
         }
         setUser({ ...data })
-        if (location.pathname.includes("/home/")) {
-          navigate(location.pathname)
-          return
-        }
-        navigate("/home")
       } catch (e) {
         console.error("reloadSession", e)
       }

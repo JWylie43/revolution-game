@@ -2,6 +2,7 @@ const redisClient = require("../redis")
 require("dotenv").config()
 const session = require("express-session")
 const RedisStore = require("connect-redis").default
+const { ipaddress } = require("@revolution-game/common")
 
 const sessionMiddleware = session({
   secret: process.env.COOKIE_SECRET,
@@ -19,9 +20,8 @@ const sessionMiddleware = session({
 })
 
 const wrap = (expressMiddleware) => (socket, next) => expressMiddleware(socket.request, {}, next)
-
 const corsConfig = {
-  origin: "http://192.168.1.118:3000",
+  origin: `http://${ipaddress}:3000`,
   credentials: true
 }
 

@@ -2,8 +2,7 @@ const redisClient = require("../../redis")
 const parseFriendList = require("./parseFriendList")
 
 const initializeUser = async (socket) => {
-  socket.user = { ...socket.request.session.user }
-  socket.join("homeroom")
+  // socket.user = { ...socket.request.session.user }
   // await redisClient.hmset(`userid:${socket.user.username}`, ["userid", socket.user.userid, "connected", true])
   // const friendList = await redisClient.lrange(`friends:${socket.user.username}`, 0, -1)
   // const parsedFriendList = await parseFriendList(friendList)

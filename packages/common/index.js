@@ -9,4 +9,6 @@ const friendSchema = Yup.object({
   friendName: Yup.string().required("Username required").min(6, "Invalid username!").max(28, "Invalid username!")
 })
 
-module.exports = { formSchema, friendSchema }
+const ipaddress = "192.168.1.118"
+
+module.exports = { formSchema, friendSchema, ipaddress }

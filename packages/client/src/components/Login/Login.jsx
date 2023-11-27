@@ -1,15 +1,14 @@
 import { Button, ButtonGroup, Heading, Text, VStack } from "@chakra-ui/react"
-import { formSchema } from "@revolution-game/common"
+import { formSchema, ipaddress } from "@revolution-game/common"
 import { Form, Formik } from "formik"
 import { useState } from "react"
-import { useNavigate } from "react-router-dom"
 import { useAccountProvider } from "../../providers/AccountProvider"
 import TextField from "../TextField"
 
-export const Login = () => {
+export const Login = (props) => {
+  const { setAction } = props
   const { setUser } = useAccountProvider()
   const [error, setError] = useState(null)
-  const navigate = useNavigate()
   return (
     <Formik
       initialValues={{ username: "", password: "" }}
@@ -17,7 +16,7 @@ export const Login = () => {
       onSubmit={async (values, actions) => {
         try {
           actions.resetForm()
-          const loginResponse = await fetch("http://192.168.1.118:4000/auth/login", {
+          const loginResponse = await fetch(`http://${ipaddress}:4000/auth/login`, {
             method: "POST",
             credentials: "include",
             headers: {
@@ -33,8 +32,6 @@ export const Login = () => {
           setUser({ ...data })
           if (data.status) {
             setError(data.status)
-          } else if (data.loggedIn) {
-            navigate("/home")
           }
         } catch (e) {
           console.error("login error", e)
@@ -47,14 +44,12 @@ export const Login = () => {
           {error}
         </Text>
         <TextField name="username" placeholder="Enter username" autoComplete="off" label="Username" />
-
         <TextField name="password" placeholder="Enter password" autoComplete="off" label="Password" type="password" />
-
         <ButtonGroup pt="1rem">
           <Button colorScheme="teal" type="submit">
             Log In
           </Button>
-          <Button onClick={() => navigate("/register")}>Create Account</Button>
+          <Button onClick={() => setAction("register")}>Create Account</Button>
         </ButtonGroup>
       </VStack>
     </Formik>

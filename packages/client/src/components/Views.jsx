@@ -1,6 +1,6 @@
 import { Navigate, Outlet, Route, Routes } from "react-router-dom"
 import { Home } from "./Home/Home"
-import { Lobby } from "./Home/Lobby"
+import { GameRouter } from "./Home/GameRouter"
 import { Login } from "./Login/Login"
 import { SignUp } from "./Login/SignUp"
 import { useAccountProvider } from "../providers/AccountProvider"
@@ -17,7 +17,7 @@ export const Views = () => {
       <Route path="/register" element={<SignUp />} />
       <Route element={<PrivateRoutes />}>
         <Route path="/home" element={<Home />} />
-        <Route path="/home/:roomId" element={<Lobby />} />
+        <Route path="/home/:roomId" element={<GameRouter />} />
       </Route>
       <Route path="*" element={<Login />} />
     </Routes>
