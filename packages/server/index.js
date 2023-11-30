@@ -37,6 +37,7 @@ io.on("connect", async (socket) => {
   const { username, userid } = socket.request.session.user
   await redisClient.hmset(`username:${username}`, ["username", username, "userid", userid, "connected", true])
   socket.user = await redisClient.hgetall(`username:${username}`)
+  socket.join(socket.user.room)
   socket.emit("updateSocketUser", socket.user)
   const gameState = await redisClient.hget(`gamestate:${socket.user.room}`, "state")
   socket.emit("setGameState", gameState)
@@ -111,7 +112,13 @@ io.on("connect", async (socket) => {
         return player.submittedBids === "true" || player.submittedBids === true
       })
     ) {
-      await redisClient.hmset(`gamestate:${socket.user.room}`, ["state", "compareBids"])
+      const winningBids = calculateWinningBids({ playersInRoom })
+      await redisClient.hmset(`gamestate:${socket.user.room}`, [
+        "state",
+        "compareBids",
+        "winningBids",
+        JSON.stringify(winningBids)
+      ])
       io.to(socket.user.room).emit("setGameState", "compareBids")
     }
   })
@@ -129,8 +136,76 @@ io.on("connect", async (socket) => {
     }
     await setPlayersInRoom({ roomId: socket.user.room })
   })
+
+  socket.on("compareBids", async (callback) => {
+    const playersInRoom = await Promise.all(
+      (await redisClient.smembers(`gameplayers:${socket.user.room}`)).map((key) => {
+        return redisClient.hgetall(`username:${key}`)
+      })
+    )
+    console.log("playersInRoom", playersInRoom)
+    const winningBids = calculateWinningBids({ playersInRoom })
+    callback(winningBids)
+  })
 })
 
 server.listen(4000, () => {
   console.log("Server listening on port 4000")
 })
+
+// const calculateWinningBids = ({ playersInRoom }) => {
+//   const winningBids = {}
+//   playersInRoom.forEach((player) => {
+//     Object.entries(JSON.parse(player.bids)).forEach(([person, bid]) => {
+//       const winningBid = compareBids({
+//         playerBid: { player: player.username, bid },
+//         currentWinningBid: winningBids[person]
+//       })
+//       if (winningBid && winningBid.player) {
+//         winningBids[person] = { winner: winningBid.player, bid: winningBid.bid }
+//       } else if (!winningBid) {
+//         if (winningBids[person]?.winner) {
+//           winningBids[person].tie = [winningBids[person].winner]
+//           delete winningBids[person].winner
+//         }
+//         winningBids[person].tie = [...winningBids[person]?.tie, player.username]
+//       }
+//     })
+//   })
+//   return winningBids
+// }
+
+const calculateWinningBids = ({ playersInRoom }) => {
+  return playersInRoom.reduce((winningBids, player) => {
+    Object.entries(JSON.parse(player.bids)).forEach(([person, bid]) => {
+      const winningBid = compareBids({
+        playerBid: { player: player.username, bid },
+        currentWinningBid: winningBids[person]
+      })
+      if (winningBid && winningBid.player) {
+        winningBids[person] = { winner: winningBid.player, bid: winningBid.bid }
+      } else if (!winningBid) {
+        if (winningBids[person]?.winner) {
+          winningBids[person].tie = [winningBids[person].winner]
+          delete winningBids[person].winner
+        }
+        winningBids[person].tie = [...winningBids[person]?.tie, player.username]
+      }
+    })
+    return winningBids
+  }, {})
+}
+
+const compareBids = ({ playerBid, currentWinningBid }) => {
+  const tokenOrder = ["force", "blackmail", "gold"]
+  for (const token of tokenOrder) {
+    const value1 = playerBid?.bid[token] || 0
+    const value2 = currentWinningBid?.bid[token] || 0
+    if (value1 > value2) {
+      return playerBid
+    } else if (value2 > value1) {
+      return currentWinningBid
+    }
+  }
+  return null
+}
