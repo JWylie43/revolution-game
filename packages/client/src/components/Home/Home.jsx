@@ -14,27 +14,21 @@ export const Home = ({ setAction }) => {
   const { user, setUser } = useAccountProvider()
   const location = useLocation()
   const navigate = useNavigate()
-
   useSocketSetup()
   useEffect(() => {
     if (!socketUser.username) {
       return
     }
     if (socketUser.room && !location.hash) {
-      if (gameState) {
-        socket.emit("leaveGame")
+      if (gameState.phase) {
+        socket.emit("leftGame")
       } else {
         window.location.reload()
       }
     }
     if (!socketUser.room && location.hash) {
-      console.log("socketUser", socketUser)
-      if (socketUser.rejoinGame) {
-        socket.emit("rejoinGame", location.hash.replace("#", ""))
-        return
-      }
-      socket.emit("joinGame", location.hash.replace("#", ""), () => {
-        navigate("/")
+      socket.emit("joinGame", location.hash.replace("#", ""), (path) => {
+        navigate(`/${path}`)
       })
     }
   }, [socketUser, location, gameState])
@@ -78,14 +72,14 @@ export const Home = ({ setAction }) => {
     navigate(`/#${roomId}`)
   }
   const onRejoinGame = () => {
-    navigate(`/#${socketUser.rejoinGame}`)
+    navigate(`/#${socketUser.rejoinroom}`)
   }
   return (
     <>
       <Text>User: {socketUser.username}</Text>
       <Button onClick={onLogout}>Logout</Button>
       <Button onClick={onCreateRoom}>Create Room</Button>
-      {socketUser.rejoinGame ? <Button onClick={onRejoinGame}>Rejoin Game</Button> : ""}
+      {socketUser.rejoinroom ? <Button onClick={onRejoinGame}>Rejoin Game</Button> : ""}
     </>
   )
 }

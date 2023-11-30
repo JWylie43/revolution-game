@@ -18,7 +18,7 @@ export const ReadyUpScreen = () => {
       {players.map((player) => {
         return (
           <div key={player.userid}>
-            Username: {player.username} | Ready: {player.isReady}
+            Username: {player.username} | Ready: {player.ready ? "yes" : "no"}
           </div>
         )
       })}

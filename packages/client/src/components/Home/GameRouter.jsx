@@ -7,10 +7,7 @@ import { BiddingBoard } from "../GameStates/BiddingBoard"
 import { GameBoard } from "../GameStates/GameBoard"
 export const GameRouter = () => {
   const { socketUser, setSocketUser, players, setPlayers, gameState, setGameState } = useGameProvider()
-  console.log("gameState", gameState)
-  console.log("socketUser", socketUser)
-  console.log("players", players)
-  switch (gameState) {
+  switch (gameState.phase) {
     case "bidding":
       return <BiddingBoard />
     case "compareBids":

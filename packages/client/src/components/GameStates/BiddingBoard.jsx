@@ -180,16 +180,11 @@ const bidBoard = [
 
 export const BiddingBoard = () => {
   const { socketUser, setSocketUser, players, setPlayers, gameState, setGameState } = useGameProvider()
-  if (socketUser.bids) {
-    const playerBids = JSON.parse(socketUser.bids)
-    const startingTokens = { gold: 0, blackmail: 0, force: 0 }
-  }
-  const [playerBids, setPlayerBids] = useState(socketUser.bids ? JSON.parse(socketUser.bids) : {})
+  const [playerBids, setPlayerBids] = useState(socketUser.bids ? socketUser.bids : {})
   const [startingTokens, setStartingTokens] = useState(
     socketUser.bids ? { gold: 0, blackmail: 0, force: 0 } : { gold: 3, blackmail: 1, force: 1 }
   )
   const [remainingTokens, setRemainingTokens] = useState(startingTokens)
-  console.log("socketUser", socketUser)
 
   const stateVariables = {
     playerBids,
@@ -207,7 +202,6 @@ export const BiddingBoard = () => {
               return result
             }, 0) === 0
           ) {
-            console.log("submit playerBids", playerBids)
             socket.emit("submitBids", playerBids)
           }
         }}

@@ -8,8 +8,7 @@ import "../../app.css"
 
 export const GameBoard = () => {
   const { socketUser, setSocketUser, players, setPlayers, gameState, setGameState } = useGameProvider()
-  console.log("players", players)
-
+  console.log("gameState", gameState)
   return (
     <Button
       onClick={() => {
