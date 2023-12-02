@@ -14,21 +14,16 @@ export const Home = ({ setAction }) => {
   const { user, setUser } = useAccountProvider()
   const location = useLocation()
   const navigate = useNavigate()
+  console.log("gameState", gameState)
   useSocketSetup()
   useEffect(() => {
     if (!socketUser.username) {
       return
     }
-    if (socketUser.room && !location.hash) {
-      if (gameState.phase) {
-        socket.emit("leftGame")
-      } else {
-        window.location.reload()
-      }
-    }
     if (!socketUser.room && location.hash) {
-      socket.emit("joinGame", location.hash.replace("#", ""), (path) => {
+      socket.emit("joinGame", location.hash.replace("#", ""), (path = "") => {
         navigate(`/${path}`)
+        window.location.reload()
       })
     }
   }, [socketUser, location, gameState])
@@ -41,6 +36,7 @@ export const Home = ({ setAction }) => {
         <Button
           onClick={() => {
             navigate("/")
+            window.location.reload()
           }}
         >
           Leave Game
@@ -69,10 +65,14 @@ export const Home = ({ setAction }) => {
   }
   const onCreateRoom = () => {
     const roomId = `room-${Math.floor(Math.random() * 9000) + 1000}`
+
     navigate(`/#${roomId}`)
+    // window.location.assign(`/#${roomId}`)
+    // // window.location.reload()
   }
   const onRejoinGame = () => {
     navigate(`/#${socketUser.rejoinroom}`)
+    // window.location.reload()
   }
   return (
     <>

@@ -4,6 +4,7 @@ import { useGameProvider } from "../../providers/GameProvider"
 
 export const ReadyUpScreen = () => {
   const { socketUser, setSocketUser, players, setPlayers, gameState, setGameState } = useGameProvider()
+  console.log("gameState", gameState)
 
   return (
     <div>
@@ -15,7 +16,7 @@ export const ReadyUpScreen = () => {
       >
         Ready Up
       </Button>
-      {players.map((player) => {
+      {gameState?.players?.map((player) => {
         return (
           <div key={player.userid}>
             Username: {player.username} | Ready: {player.ready ? "yes" : "no"}

@@ -15,9 +15,9 @@ export const useSocketSetup = () => {
     socket.on("updateSocketUser", (user) => {
       setSocketUser(user)
     })
-    socket.on("setPlayersInRoom", (players) => {
-      setPlayers(players)
-    })
+    // socket.on("setPlayersInRoom", (players) => {
+    //   setPlayers(players)
+    // })
     socket.on("setGameState", (state) => {
       setGameState(state)
     })

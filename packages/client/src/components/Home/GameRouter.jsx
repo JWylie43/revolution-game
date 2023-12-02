@@ -7,12 +7,21 @@ import { BiddingBoard } from "../GameStates/BiddingBoard"
 import { GameBoard } from "../GameStates/GameBoard"
 export const GameRouter = () => {
   const { socketUser, setSocketUser, players, setPlayers, gameState, setGameState } = useGameProvider()
-  switch (gameState.phase) {
-    case "bidding":
-      return <BiddingBoard />
-    case "compareBids":
-      return <GameBoard />
-    default:
-      return <ReadyUpScreen />
+
+  if (!gameState.phase || gameState.phase === "lobby") {
+    return <ReadyUpScreen />
   }
+  return (
+    <>
+      <Button
+        onClick={() => {
+          socket.emit("testing", gameState.bidResults)
+        }}
+      >
+        Testing
+      </Button>
+      <GameBoard />
+      <BiddingBoard />
+    </>
+  )
 }

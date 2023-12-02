@@ -25,31 +25,32 @@ io.use(authorizeUser)
 
 io.on("connect", async (socket) => {
   console.log("connecting")
-  const setPlayersInRoom = async ({ roomId }) => {
-    if (!roomId) {
-      return null
-    }
-    const playersInRoom = await Promise.all(
-      JSON.parse(await redisClient.get(`gamestate:${roomId}`))?.players.map(async (key) => {
+  const getPlayersInGame = async () => {
+    return await Promise.all(
+      JSON.parse(await redisClient.get(`gamestate:${socket.user.room}`))?.players.map(async (key) => {
         return JSON.parse(await redisClient.get(`username:${key}`))
       })
     )
-    io.to(roomId).emit("setPlayersInRoom", playersInRoom)
-    return playersInRoom
   }
-  const updateRedisUser = async ({ userUpdates }) => {
+  const updateRedisUser = async ({ userUpdates, overwriteUser = false }) => {
     const userData = JSON.parse(
       await redisClient.get(`username:${socket.user ? socket.user.username : userUpdates.username}`)
     )
-    await redisClient.set(
-      `username:${socket.user ? socket.user.username : userUpdates.username}`,
-      JSON.stringify({ ...userData, ...userUpdates })
-    )
-    socket.user = { ...userData, ...userUpdates }
+    if (overwriteUser === true) {
+      console.log("overwriteUser")
+      await redisClient.set(`username:${socket.user.username}`, JSON.stringify(userUpdates))
+    } else {
+      await redisClient.set(
+        `username:${socket.user ? socket.user.username : userUpdates.username}`,
+        JSON.stringify({ ...userData, ...userUpdates })
+      )
+    }
+    socket.user = JSON.parse(await redisClient.get(`username:${socket.user ? socket.user.username : userUpdates.username}`))
     socket.emit("updateSocketUser", socket.user)
   }
-  const updateGameState = async ({ updates, removePlayer, addPlayer }) => {
-    const gameState = JSON.parse(await redisClient.get(`gamestate:${socket.user.room}`)) || { players: [] }
+  const updateGameState = async ({ updates, removePlayer, addPlayer, addInfluence }) => {
+    const targetRoom = socket.user.room || socket.user.rejoinroom
+    const gameState = JSON.parse(await redisClient.get(`gamestate:${targetRoom}`)) || { phase: "lobby", players: [] }
     if (removePlayer && gameState.players.includes(removePlayer)) {
       gameState.players = gameState.players.filter((player) => {
         return player !== removePlayer
@@ -58,92 +59,151 @@ io.on("connect", async (socket) => {
     if (addPlayer && !gameState.players.includes(addPlayer)) {
       gameState.players = [...gameState.players, addPlayer]
     }
-    await redisClient.set(`gamestate:${socket.user.room}`, JSON.stringify({ ...gameState, ...updates }))
-    io.to(socket.user.room).emit("setGameState", { ...gameState, ...updates })
+    if (addInfluence) {
+      console.log("gameState before", gameState.gameBoard)
+      gameState.gameBoard.forEach((location) => {
+        if (addInfluence[location.id]) {
+          location.influence = [...location.influence, addInfluence[location.id]]
+        }
+      })
+      console.log("gameState after", gameState.gameBoard)
+      // if (!gameState.influence) {
+      //   gameState.influence = {}
+      // }
+      // Object.entries(addInfluence).forEach(([location, player]) => {
+      //   if (!gameState.influence[location]) {
+      //     gameState.influence[location] = []
+      //   }
+      //   gameState.influence[location] = [...gameState.influence[location], player]
+      // })
+    }
+    await redisClient.set(`gamestate:${targetRoom}`, JSON.stringify({ ...gameState, ...updates }))
+    console.log("targetRoom", targetRoom)
+    const playersInRoom = await Promise.all(
+      JSON.parse(await redisClient.get(`gamestate:${targetRoom}`))?.players.map(async (key) => {
+        return JSON.parse(await redisClient.get(`username:${key}`))
+      })
+    )
+    io.to(targetRoom).emit("setGameState", { ...gameState, ...updates, players: playersInRoom })
   }
 
   const { username, userid } = socket.request.session.user
   await updateRedisUser({ userUpdates: { username, userid, connected: true } })
   if (socket.user.room) {
     socket.join(socket.user.room)
-    await updateGameState({ updates: {} })
-    await setPlayersInRoom({ roomId: socket.user.room })
+    await updateGameState({})
   }
 
   socket.on("joinGame", async (roomId, callback) => {
     socket.rooms.forEach((room) => {
       socket.leave(room)
     })
-    if (socket.user.rejoinroom) {
-      const rejoinRoom = socket.user.rejoinroom
-      await updateRedisUser({ userUpdates: { ready: false, rejoinroom: null } })
-      callback(`#${rejoinRoom}`)
+    if (socket.user.rejoinroom && socket.user.rejoinroom !== roomId) {
+      callback(`#${socket.user.rejoinroom}`)
       return
     }
     const gameState = JSON.parse(await redisClient.get(`gamestate:${roomId}`))
     const playerRejoining = gameState?.players && gameState.players.includes(socket.user.username)
     const maximumPlayersMet = gameState?.players?.length >= 4
-    if (!playerRejoining && (gameState?.phase || maximumPlayersMet)) {
+    if (gameState && !playerRejoining && (gameState?.phase !== "lobby" || maximumPlayersMet)) {
       callback()
       return
     }
     socket.join(roomId)
-    await updateRedisUser({ userUpdates: { ready: false, room: roomId } })
+    await updateRedisUser({ userUpdates: { ready: false, room: roomId, rejoinroom: null } })
     await updateGameState({ addPlayer: socket.user.username })
-    await setPlayersInRoom({ roomId })
   })
-
   socket.on("setReadyUp", async () => {
     await updateRedisUser({ userUpdates: { ready: !socket.user.ready } })
-    const playersInRoom = await setPlayersInRoom({ roomId: socket.user.room })
+    const playersInGame = await getPlayersInGame()
     if (
-      playersInRoom.length > 1 &&
-      playersInRoom.every((player) => {
+      playersInGame.length > 1 &&
+      playersInGame.every((player) => {
         return player.ready === true
       })
     ) {
+      await updateRedisUser({ userUpdates: { startingTokens: { gold: 3, blackmail: 1, force: 1 } } })
       await updateGameState({
         updates: {
           phase: "bidding",
-          players: playersInRoom.map((player) => {
-            return player.username
-          })
+          gameBoard,
+          bidBoard
         }
       })
+
+      return
     }
-  })
-  socket.on("leftGame", async () => {
-    const room = socket.user.room
-    await updateRedisUser({ userUpdates: { room: null, ready: false, bids: null, rejoinroom: room } })
-    await setPlayersInRoom({ roomId: room })
-    socket.leave(room)
+    await updateGameState({})
   })
   socket.on("submitBids", async (bids) => {
     await updateRedisUser({ userUpdates: { bids: bids } })
-    const playersInRoom = await setPlayersInRoom({ roomId: socket.user.room })
+    await updateGameState({})
+    const playersInGame = await getPlayersInGame()
     if (
-      playersInRoom.every((player) => {
+      playersInGame.every((player) => {
         return player.bids
       })
     ) {
-      const winningBids = calculateWinningBids({ playersInRoom })
-      await updateGameState({ updates: { phase: "compareBids", winningBids } })
+      const bidResults = compareAllBids({ playersInGame })
+      const winningBids = Object.entries(bidResults).reduce((result, [location, values]) => {
+        result[location] = values.winner
+        return result
+      }, {})
+      console.log("winningBids", winningBids)
+
+      await updateGameState({ updates: { phase: "compareBids", bidResults } })
     }
   })
-
+  socket.on("testing", async (bidResults) => {
+    const spacesWon = Object.entries(bidResults)
+      .filter(([person, values]) => {
+        return values.winner
+      })
+      .map(([person, values]) => {
+        return { person, player: values.winner }
+      })
+    console.log("spacesWon", spacesWon)
+    const userUpdates = {}
+    const gameUpdates = {}
+    spacesWon.forEach((spaces) => {
+      const { player } = spaces
+      userUpdates[player] = {}
+      const benefitsAwarded = bidBoard.find((person) => {
+        return person.id == spaces.person
+      })?.benefits
+      // console.log("benefitsAwarded", benefitsAwarded)
+      benefitsAwarded.forEach(({ benefit }) => {
+        if (benefit.includes("support")) {
+          const [_, amount] = benefit.split("-")
+          console.log(`add support | ${player} | ${amount}`)
+          userUpdates[player].support += amount
+        } else if (benefit.includes("-")) {
+          const [token, amount] = benefit.split("-")
+          console.log(`add ${amount} ${token} | ${player}`)
+          userUpdates[player].startingTokens[token] += amount
+        } else if (benefit === "replace") {
+          console.log(`replace cube | ${player}`)
+        } else if (benefit === "swap") {
+          console.log(`swap cube | ${player}`)
+        } else {
+          console.log(`add influence | ${player} | ${benefit}`)
+        }
+      })
+    })
+  })
   socket.on("disconnecting", async () => {
     console.log("disconnecting", socket.user)
-    const userUpdates = { connected: false }
-    if (socket.user.room) {
-      const gameState = JSON.parse(await redisClient.get(`gamestate:${socket.user.room}`))
-      if (!gameState?.phase) {
-        userUpdates.room = null
-        userUpdates.ready = false
+    const gameState = JSON.parse(await redisClient.get(`gamestate:${socket.user.room}`))
+    if (gameState) {
+      if (gameState.phase === "lobby") {
         await updateGameState({ removePlayer: socket.user.username })
+        await updateRedisUser({ userUpdates: { connected: false }, overwriteUser: true })
+        return
       }
+      await updateRedisUser({ userUpdates: { connected: false, room: null, rejoinroom: socket.user.room } })
+      await updateGameState({})
     }
-    await setPlayersInRoom({ roomId: socket.user.room })
-    await updateRedisUser({ userUpdates })
+    await updateRedisUser({ userUpdates: { connected: false } })
   })
 })
 
@@ -151,8 +211,188 @@ server.listen(4000, () => {
   console.log("Server listening on port 4000")
 })
 
-const calculateWinningBids = ({ playersInRoom }) => {
-  return playersInRoom.reduce((winningBids, player) => {
+const gameBoard = [
+  { id: "plantation", name: "Plantation", spaces: 6, influence: [] },
+  { id: "tavern", name: "Tavern", spaces: 4, influence: [] },
+  { id: "cathedral", name: "Cathedral", spaces: 7, influence: [] },
+  { id: "townhall", name: "Town Hall", spaces: 7, influence: [] },
+  { id: "fortress", name: "Fortress", spaces: 8, influence: [] },
+  { id: "market", name: "Market", spaces: 5, influence: [] },
+  { id: "harbor", name: "Harbor", spaces: 6, influence: [] }
+]
+
+const benefits = {
+  oneSupport: {
+    name: "One Support",
+    benefit: "support-1"
+  },
+  threeSupport: {
+    name: "Three Support",
+    benefit: "support-3"
+  },
+  fiveSupport: {
+    name: "Five Support",
+    benefit: "support-5"
+  },
+  sixSupport: {
+    name: "Six Support",
+    benefit: "support-6"
+  },
+  tenSupport: {
+    name: "Ten Support",
+    benefit: "support-10"
+  },
+  threeGold: {
+    name: "Three Gold",
+    benefit: "gold-3"
+  },
+  fiveGold: {
+    name: "Five Gold",
+    benefit: "gold-5"
+  },
+  oneBlackmail: {
+    name: "One Blackmail",
+    benefit: "blackmail-1"
+  },
+  twoBlackmail: {
+    name: "Two Blackmail",
+    benefit: "blackmail-2"
+  },
+  oneForce: {
+    name: "One Force",
+    benefit: "force-1"
+  },
+  fortress: {
+    name: "Influence Fortress",
+    benefit: "fortress"
+  },
+  harbor: {
+    name: "Influence Harbor",
+    benefit: "harbor"
+  },
+  tavern: {
+    name: "Influence Tavern",
+    benefit: "tavern"
+  },
+  townhall: {
+    name: "Influence Town Hall",
+    benefit: "townhall"
+  },
+  cathedral: {
+    name: "Influence Cathedral",
+    benefit: "cathedral"
+  },
+  plantation: {
+    name: "Influence Plantation",
+    benefit: "plantation"
+  },
+  market: {
+    name: "Influence Market",
+    benefit: "market"
+  },
+  replace: { name: "Replace one Influence Cube with one of your own", benefit: "replace" },
+  swap: { name: "Swap the cubes in any two Influence Spaces", benefit: "swap" }
+}
+const bidBoard = [
+  {
+    name: "General",
+    noForce: true,
+    noBlackmail: false,
+    benefits: [benefits.oneSupport, benefits.oneForce, benefits.fortress],
+    id: "general"
+  },
+  {
+    name: "Captain",
+    noForce: true,
+    noBlackmail: false,
+    benefits: [benefits.oneSupport, benefits.oneForce, benefits.harbor],
+    id: "captain",
+    nextSpace: "innkeeper"
+  },
+  {
+    name: "Innkeeper",
+    noForce: false,
+    noBlackmail: true,
+    benefits: [benefits.threeSupport, benefits.oneBlackmail, benefits.tavern],
+    id: "innkeeper",
+    nextSpace: "magistrate"
+  },
+  {
+    name: "Magistrate",
+    noForce: false,
+    noBlackmail: true,
+    benefits: [benefits.threeSupport, benefits.oneBlackmail, benefits.townhall],
+    id: "magistrate",
+    nextSpace: "priest"
+  },
+  {
+    name: "Priest",
+    noForce: false,
+    noBlackmail: false,
+    benefits: [benefits.sixSupport, benefits.cathedral],
+    id: "priest",
+    nextSpace: "aristocrat"
+  },
+  {
+    name: "Aristocrat",
+    noForce: false,
+    noBlackmail: false,
+    benefits: [benefits.fiveSupport, benefits.threeGold, benefits.plantation],
+    id: "aristocrat",
+    nextSpace: "merchant"
+  },
+  {
+    name: "Merchant",
+    noForce: false,
+    noBlackmail: false,
+    benefits: [benefits.threeSupport, benefits.fiveGold, benefits.market],
+    id: "merchant",
+    nextSpace: "printer"
+  },
+  {
+    name: "Printer",
+    noForce: false,
+    noBlackmail: false,
+    benefits: [benefits.tenSupport],
+    id: "printer",
+    nextSpace: "rogue"
+  },
+  {
+    name: "Rogue",
+    noForce: true,
+    noBlackmail: true,
+    benefits: [benefits.twoBlackmail],
+    id: "rogue",
+    nextSpace: "spy"
+  },
+  {
+    name: "Spy",
+    noForce: false,
+    noBlackmail: true,
+    benefits: [benefits.replace],
+    id: "spy",
+    nextSpace: "apothecary"
+  },
+  {
+    name: "Apothecary",
+    noForce: true,
+    noBlackmail: false,
+    benefits: [benefits.swap],
+    id: "apothecary",
+    nextSpace: "mercenary"
+  },
+  {
+    name: "Mercenary",
+    noForce: true,
+    noBlackmail: true,
+    benefits: [benefits.threeSupport, benefits.oneForce],
+    id: "mercenary",
+    nextSpace: null
+  }
+]
+
+const compareAllBids = ({ playersInGame }) => {
+  return playersInGame.reduce((winningBids, player) => {
     Object.entries(player.bids).forEach(([person, bid]) => {
       const winningBid = compareBids({
         playerBid: { player: player.username, bid },
