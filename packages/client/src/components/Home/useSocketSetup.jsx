@@ -5,21 +5,19 @@ import { useNavigate } from "react-router-dom"
 import { useGameProvider } from "../../providers/GameProvider"
 
 export const useSocketSetup = () => {
-  const { socketUser, setSocketUser, players, setPlayers, gameState, setGameState } = useGameProvider()
-  const { setUser } = useAccountProvider()
+  const { gamePlayer, setGamePlayer, gameState, setGameState } = useGameProvider()
+  const { user, setUser } = useAccountProvider()
   useEffect(() => {
     socket.connect()
     socket.on("connect_error", () => {
       setUser({ loggedIn: false })
     })
-    socket.on("updateSocketUser", (user) => {
-      setSocketUser(user)
+    socket.on("initializePlayer", (player) => {
+      setGamePlayer(player)
     })
-    // socket.on("setPlayersInRoom", (players) => {
-    //   setPlayers(players)
-    // })
     socket.on("setGameState", (state) => {
       setGameState(state)
+      setGamePlayer(state.players[user.username])
     })
     return () => {
       socket.off("connect_error")

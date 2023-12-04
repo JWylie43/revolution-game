@@ -8,14 +8,18 @@ import { GameBoard } from "../GameStates/GameBoard"
 export const GameRouter = () => {
   const { socketUser, setSocketUser, players, setPlayers, gameState, setGameState } = useGameProvider()
 
-  if (!gameState.phase || gameState.phase === "lobby") {
+  if (gameState.phase === "lobby") {
     return <ReadyUpScreen />
   }
+  // if (gameState.phase === "replace") {
+  //   console.log("gameState", gameState)
+  //   return <GameBoard />
+  // }
   return (
     <>
       <Button
         onClick={() => {
-          socket.emit("testing", gameState.bidResults)
+          socket.emit("testing")
         }}
       >
         Testing

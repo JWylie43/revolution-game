@@ -23,138 +23,136 @@ app.use("/auth", authRouter)
 io.use(wrap(sessionMiddleware))
 io.use(authorizeUser)
 
+const playerModel = {
+  username: "",
+  userid: "",
+  connected: "",
+  room: "",
+  rejoinroom: "",
+  ready: false,
+  startingtokens: { gold: 3, blackmail: 1, force: 1 },
+  bids: { general: { gold: 2, force: 2 } },
+  support: 0,
+  influence: { plantation: 1 }
+}
+const gameStateModel = {
+  phase: "bidding",
+  players: { testing: { ...playerModel } },
+  round: 1,
+  highestbids: {
+    general: { winner: "testing", bid: { gold: 2, force: 2 } },
+    captain: { tie: ["testing", "newname"], bid: { gold: 2, force: 2 } }
+  }
+  // bidboard: bidBoard,
+  // gameboard: gameboard
+}
+
 io.on("connect", async (socket) => {
   console.log("connecting")
-  const getPlayersInGame = async () => {
-    return await Promise.all(
-      JSON.parse(await redisClient.get(`gamestate:${socket.user.room}`))?.players.map(async (key) => {
-        return JSON.parse(await redisClient.get(`username:${key}`))
-      })
-    )
-  }
-  const updateRedisUser = async ({ userUpdates, overwriteUser = false }) => {
-    const userData = JSON.parse(
-      await redisClient.get(`username:${socket.user ? socket.user.username : userUpdates.username}`)
-    )
-    if (overwriteUser === true) {
-      console.log("overwriteUser")
-      await redisClient.set(`username:${socket.user.username}`, JSON.stringify(userUpdates))
-    } else {
-      await redisClient.set(
-        `username:${socket.user ? socket.user.username : userUpdates.username}`,
-        JSON.stringify({ ...userData, ...userUpdates })
-      )
-    }
-    socket.user = JSON.parse(await redisClient.get(`username:${socket.user ? socket.user.username : userUpdates.username}`))
-    socket.emit("updateSocketUser", socket.user)
-  }
-  const updateGameState = async ({ updates, removePlayer, addPlayer, addInfluence }) => {
-    const targetRoom = socket.user.room || socket.user.rejoinroom
-    const gameState = JSON.parse(await redisClient.get(`gamestate:${targetRoom}`)) || { phase: "lobby", players: [] }
-    if (removePlayer && gameState.players.includes(removePlayer)) {
-      gameState.players = gameState.players.filter((player) => {
-        return player !== removePlayer
-      })
-    }
-    if (addPlayer && !gameState.players.includes(addPlayer)) {
-      gameState.players = [...gameState.players, addPlayer]
-    }
-    if (addInfluence) {
-      console.log("gameState before", gameState.gameBoard)
-      gameState.gameBoard.forEach((location) => {
-        if (addInfluence[location.id]) {
-          location.influence = [...location.influence, addInfluence[location.id]]
-        }
-      })
-      console.log("gameState after", gameState.gameBoard)
-      // if (!gameState.influence) {
-      //   gameState.influence = {}
-      // }
-      // Object.entries(addInfluence).forEach(([location, player]) => {
-      //   if (!gameState.influence[location]) {
-      //     gameState.influence[location] = []
-      //   }
-      //   gameState.influence[location] = [...gameState.influence[location], player]
-      // })
-    }
-    await redisClient.set(`gamestate:${targetRoom}`, JSON.stringify({ ...gameState, ...updates }))
-    console.log("targetRoom", targetRoom)
-    const playersInRoom = await Promise.all(
-      JSON.parse(await redisClient.get(`gamestate:${targetRoom}`))?.players.map(async (key) => {
-        return JSON.parse(await redisClient.get(`username:${key}`))
-      })
-    )
-    io.to(targetRoom).emit("setGameState", { ...gameState, ...updates, players: playersInRoom })
-  }
-
   const { username, userid } = socket.request.session.user
-  await updateRedisUser({ userUpdates: { username, userid, connected: true } })
-  if (socket.user.room) {
-    socket.join(socket.user.room)
-    await updateGameState({})
+  socket.username = username
+  const initializePlayer = {
+    ...JSON.parse(await redisClient.get(`username:${username}`)),
+    username,
+    userid,
+    connected: true
   }
+  await redisClient.set(`username:${username}`, JSON.stringify(initializePlayer))
+  socket.emit("initializePlayer", initializePlayer)
 
   socket.on("joinGame", async (roomId, callback) => {
     socket.rooms.forEach((room) => {
       socket.leave(room)
     })
-    if (socket.user.rejoinroom && socket.user.rejoinroom !== roomId) {
-      callback(`#${socket.user.rejoinroom}`)
+    let playerData = JSON.parse(await redisClient.get(`username:${socket.username}`))
+    if (playerData.rejoinroom && playerData.rejoinroom !== roomId) {
+      callback(`#${playerData.rejoinroom}`)
       return
     }
-    const gameState = JSON.parse(await redisClient.get(`gamestate:${roomId}`))
-    const playerRejoining = gameState?.players && gameState.players.includes(socket.user.username)
-    const maximumPlayersMet = gameState?.players?.length >= 4
-    if (gameState && !playerRejoining && (gameState?.phase !== "lobby" || maximumPlayersMet)) {
+    const gameState = JSON.parse(await redisClient.get(`gamestate:${roomId}`)) || {
+      phase: "lobby",
+      players: {},
+      round: 1,
+      highestbids: {},
+      bidboard: bidBoard,
+      gameboard: gameBoard
+    }
+    const playerInGame = gameState.players[playerData.username]
+    const maximumPlayersMet = Object.keys(gameState.players).length >= 4
+    if (!playerInGame && (gameState?.phase !== "lobby" || maximumPlayersMet)) {
       callback()
       return
     }
     socket.join(roomId)
-    await updateRedisUser({ userUpdates: { ready: false, room: roomId, rejoinroom: null } })
-    await updateGameState({ addPlayer: socket.user.username })
+    playerData = { ...playerData, room: roomId, rejoinroom: null }
+    await redisClient.set(`username:${playerData.username}`, JSON.stringify(playerData))
+    gameState.players = { ...gameState.players, [playerData.username]: playerData }
+    await redisClient.set(`gamestate:${roomId}`, JSON.stringify(gameState))
+    io.to(playerData.room).emit("setGameState", gameState)
   })
   socket.on("setReadyUp", async () => {
-    await updateRedisUser({ userUpdates: { ready: !socket.user.ready } })
-    const playersInGame = await getPlayersInGame()
-    if (
-      playersInGame.length > 1 &&
-      playersInGame.every((player) => {
-        return player.ready === true
-      })
-    ) {
-      await updateRedisUser({ userUpdates: { startingTokens: { gold: 3, blackmail: 1, force: 1 } } })
-      await updateGameState({
-        updates: {
-          phase: "bidding",
-          gameBoard,
-          bidBoard
+    let playerData = JSON.parse(await redisClient.get(`username:${socket.username}`))
+    const gameState = JSON.parse(await redisClient.get(`gamestate:${playerData.room}`))
+
+    playerData = { ...playerData, ready: !playerData.ready }
+    await redisClient.set(`username:${playerData.username}`, JSON.stringify(playerData))
+    gameState.players = { ...gameState.players, [playerData.username]: playerData }
+    await redisClient.set(`gamestate:${playerData.room}`, JSON.stringify(gameState))
+    io.to(playerData.room).emit("setGameState", gameState)
+
+    const minimumRequiredPlayers = Object.keys(gameState.players).length > 1
+    const allPlayersReady = Object.values(gameState.players).every(({ ready }) => {
+      return ready
+    })
+    io.to(playerData.room).emit("setGameState", gameState)
+    if (minimumRequiredPlayers && allPlayersReady) {
+      const playerColors = ["green", "red", "yellow", "blue"]
+      Object.values(gameState.players).forEach(async (player, index) => {
+        const playerUpdates = {
+          ...player,
+          startingtokens: { gold: 3, blackmail: 1, force: 1 },
+          bids: {},
+          support: 0,
+          influence: {},
+          color: playerColors[index]
         }
+        gameState.players[player.username] = playerUpdates
+        await redisClient.set(`username:${player.username}`, JSON.stringify(playerUpdates))
       })
+      gameState.phase = "bidding"
 
-      return
+      await redisClient.set(`gamestate:${playerData.room}`, JSON.stringify(gameState))
+      io.to(playerData.room).emit("setGameState", gameState)
     }
-    await updateGameState({})
   })
+
   socket.on("submitBids", async (bids) => {
-    await updateRedisUser({ userUpdates: { bids: bids } })
-    await updateGameState({})
-    const playersInGame = await getPlayersInGame()
-    if (
-      playersInGame.every((player) => {
-        return player.bids
-      })
-    ) {
-      const bidResults = compareAllBids({ playersInGame })
-      const winningBids = Object.entries(bidResults).reduce((result, [location, values]) => {
-        result[location] = values.winner
-        return result
-      }, {})
-      console.log("winningBids", winningBids)
+    let playerData = JSON.parse(await redisClient.get(`username:${socket.username}`))
+    const gameState = JSON.parse(await redisClient.get(`gamestate:${playerData.room}`))
 
-      await updateGameState({ updates: { phase: "compareBids", bidResults } })
+    playerData = { ...playerData, bids, startingtokens: {} }
+    await redisClient.set(`username:${playerData.username}`, JSON.stringify(playerData))
+    gameState.players = { ...gameState.players, [playerData.username]: playerData }
+    await redisClient.set(`gamestate:${playerData.room}`, JSON.stringify(gameState))
+    io.to(playerData.room).emit("setGameState", gameState)
+
+    const allBidsSubmitted = Object.values(gameState.players).every(({ bids }) => {
+      return Object.keys(bids).length
+    })
+    if (allBidsSubmitted) {
+      const bidResults = compareAllBids({ playersInGame: Object.values(gameState.players) })
+      await test({ playerData, gameState, bidResults })
     }
   })
-  socket.on("testing", async (bidResults) => {
+  socket.on("testing", async () => {
+    let playerData = JSON.parse(await redisClient.get(`username:${socket.username}`))
+    const gameState = JSON.parse(await redisClient.get(`gamestate:${playerData.room}`))
+    const bidResults = compareAllBids({ playersInGame: Object.values(gameState.players) })
+    console.log("bidResults", bidResults)
+    await test({ playerData, gameState, bidResults })
+  })
+
+  const test = async ({ playerData, gameState, bidResults }) => {
     const spacesWon = Object.entries(bidResults)
       .filter(([person, values]) => {
         return values.winner
@@ -162,48 +160,128 @@ io.on("connect", async (socket) => {
       .map(([person, values]) => {
         return { person, player: values.winner }
       })
-    console.log("spacesWon", spacesWon)
-    const userUpdates = {}
-    const gameUpdates = {}
+    const biddingResults = Object.keys(gameState.players).reduce((result, current) => {
+      result[current] = {}
+      return result
+    }, {})
+
     spacesWon.forEach((spaces) => {
       const { player } = spaces
-      userUpdates[player] = {}
       const benefitsAwarded = bidBoard.find((person) => {
         return person.id == spaces.person
       })?.benefits
-      // console.log("benefitsAwarded", benefitsAwarded)
       benefitsAwarded.forEach(({ benefit }) => {
         if (benefit.includes("support")) {
           const [_, amount] = benefit.split("-")
-          console.log(`add support | ${player} | ${amount}`)
-          userUpdates[player].support += amount
+          if (!biddingResults[player].support) {
+            biddingResults[player].support = 0
+          }
+          biddingResults[player].support += parseInt(amount)
         } else if (benefit.includes("-")) {
           const [token, amount] = benefit.split("-")
-          console.log(`add ${amount} ${token} | ${player}`)
-          userUpdates[player].startingTokens[token] += amount
+          if (!biddingResults[player].tokenswon) {
+            biddingResults[player].tokenswon = { [token]: 0 }
+          }
+          if (!biddingResults[player].tokenswon[token]) {
+            biddingResults[player].tokenswon[token] = 0
+          }
+          biddingResults[player].tokenswon[token] += parseInt(amount)
         } else if (benefit === "replace") {
-          console.log(`replace cube | ${player}`)
+          biddingResults[player].replace = true
         } else if (benefit === "swap") {
-          console.log(`swap cube | ${player}`)
+          biddingResults[player].swap = true
         } else {
-          console.log(`add influence | ${player} | ${benefit}`)
+          if (!biddingResults[player].influence) {
+            biddingResults[player].influence = []
+          }
+          biddingResults[player].influence = [...biddingResults[player].influence, benefit]
         }
       })
     })
-  })
-  socket.on("disconnecting", async () => {
-    console.log("disconnecting", socket.user)
-    const gameState = JSON.parse(await redisClient.get(`gamestate:${socket.user.room}`))
-    if (gameState) {
-      if (gameState.phase === "lobby") {
-        await updateGameState({ removePlayer: socket.user.username })
-        await updateRedisUser({ userUpdates: { connected: false }, overwriteUser: true })
-        return
+    console.log("biddingResults", biddingResults)
+    let gameBoardCopy = [...gameState.gameboard]
+    for (const player of Object.values(gameState.players)) {
+      console.log("test", biddingResults[player.username])
+
+      const { tokenswon = {}, support = 0, replace = false, swap = false, influence = [] } = biddingResults[player.username]
+
+      const totalTokensWon = Object.values(tokenswon).reduce((result, current) => {
+        result += current
+        return result
+      }, 0)
+      const additionalGold = totalTokensWon < 5 ? 5 - totalTokensWon : 0
+      const startingTokens = { ...tokenswon }
+      console.log("additionalGold", additionalGold)
+      console.log("startingTokens", startingTokens)
+      if (additionalGold) {
+        if (startingTokens.gold) {
+          startingTokens.gold += additionalGold
+        } else {
+          startingTokens.gold = additionalGold
+        }
       }
-      await updateRedisUser({ userUpdates: { connected: false, room: null, rejoinroom: socket.user.room } })
-      await updateGameState({})
+      console.log("startingTokens", startingTokens)
+      const playerUpdates = {
+        ...player,
+        startingtokens: startingTokens,
+        tokenswon,
+        additionalgold: additionalGold,
+        support: player.support + support,
+        replace,
+        swap
+      }
+      gameState.players[player.username] = playerUpdates
+      await redisClient.set(`username:${player.username}`, JSON.stringify(playerUpdates))
+
+      console.log("influence", influence)
+
+      influence.forEach((locationId) => {
+        gameBoardCopy.forEach((location) => {
+          if (location.id === locationId) {
+            location.influence = [...location.influence, player.username]
+          }
+        })
+      })
     }
-    await updateRedisUser({ userUpdates: { connected: false } })
+    console.log("gameBoardCopy", gameBoardCopy)
+    gameState.gameboard = [...gameBoardCopy]
+    gameState.phase = "replace"
+    await redisClient.set(`gamestate:${playerData.room}`, JSON.stringify(gameState))
+    io.to(playerData.room).emit("setGameState", gameState)
+  }
+
+  socket.on("disconnecting", async () => {
+    console.log("disconnecting", socket.username)
+    let playerData = JSON.parse(await redisClient.get(`username:${socket.username}`))
+    if (playerData) {
+      if (playerData.room || playerData?.rejoinroom) {
+        const gameState = JSON.parse(await redisClient.get(`gamestate:${playerData.room}`))
+        if (gameState) {
+          if (gameState.phase === "lobby") {
+            delete gameState.players[playerData.username]
+            await redisClient.set(`gamestate:${playerData.room}`, JSON.stringify(gameState))
+            io.to(playerData.room).emit("setGameState", gameState)
+          } else {
+            await redisClient.set(
+              `username:${playerData.username}`,
+              JSON.stringify({ ...playerData, connected: false, room: null, rejoinroom: playerData.room })
+            )
+            gameState.players[playerData.username] = {
+              ...playerData,
+              connected: false,
+              room: null,
+              rejoinroom: playerData.room
+            }
+            await redisClient.set(`gamestate:${playerData.room}`, JSON.stringify(gameState))
+            io.to(playerData.room).emit("setGameState", gameState)
+            return
+          }
+        }
+      } else if (playerData.rejoinroom) {
+        await redisClient.set(`username:${playerData.username}`, JSON.stringify({ ...playerData, connected: false }))
+      }
+    }
+    await redisClient.set(`username:${socket.username}`, JSON.stringify({ connected: false }))
   })
 })
 

@@ -10,27 +10,30 @@ import { socket } from "../../socket"
 import { ipaddress } from "@revolution-game/common"
 
 export const Home = ({ setAction }) => {
-  const { socketUser, setSocketUser, players, setPlayers, gameState } = useGameProvider()
+  const { gamePlayer, setGamePlayer, gameState } = useGameProvider()
   const { user, setUser } = useAccountProvider()
   const location = useLocation()
   const navigate = useNavigate()
-  console.log("gameState", gameState)
   useSocketSetup()
   useEffect(() => {
-    if (!socketUser.username) {
+    if (!gamePlayer) {
       return
     }
-    if (!socketUser.room && location.hash) {
+    if (!gamePlayer.room && location.hash) {
       socket.emit("joinGame", location.hash.replace("#", ""), (path = "") => {
         navigate(`/${path}`)
         window.location.reload()
       })
     }
-  }, [socketUser, location, gameState])
-  if (!socketUser.connected) {
+  }, [gamePlayer, location, gameState])
+  if (!gamePlayer) {
+    return
+  }
+  if (!gamePlayer.connected) {
     return <div>connecting...</div>
   }
-  if (socketUser.room) {
+
+  if (gamePlayer.room && gameState) {
     return (
       <>
         <Button
@@ -71,15 +74,15 @@ export const Home = ({ setAction }) => {
     // // window.location.reload()
   }
   const onRejoinGame = () => {
-    navigate(`/#${socketUser.rejoinroom}`)
+    navigate(`/#${gamePlayer.rejoinroom}`)
     // window.location.reload()
   }
   return (
     <>
-      <Text>User: {socketUser.username}</Text>
+      <Text>User: {gamePlayer.username}</Text>
       <Button onClick={onLogout}>Logout</Button>
       <Button onClick={onCreateRoom}>Create Room</Button>
-      {socketUser.rejoinroom ? <Button onClick={onRejoinGame}>Rejoin Game</Button> : ""}
+      {gamePlayer.rejoinroom ? <Button onClick={onRejoinGame}>Rejoin Game</Button> : ""}
     </>
   )
 }

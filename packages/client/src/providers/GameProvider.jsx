@@ -5,14 +5,11 @@ export const useGameProvider = () => {
   return useContext(GameContext)
 }
 export const GameProvider = ({ children }) => {
-  const [socketUser, setSocketUser] = useState({})
-  const [players, setPlayers] = useState([])
-  const [gameState, setGameState] = useState("")
+  const [gamePlayer, setGamePlayer] = useState(null)
+  const [gameState, setGameState] = useState(null)
   const values = {
-    socketUser,
-    setSocketUser,
-    players,
-    setPlayers,
+    gamePlayer,
+    setGamePlayer,
     gameState,
     setGameState
   }

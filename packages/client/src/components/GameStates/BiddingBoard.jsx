@@ -5,12 +5,9 @@ import { createContext, useContext, useState } from "react"
 import { BidSpace } from "./BidSpace"
 
 export const BiddingBoard = () => {
-  const { socketUser, setSocketUser, players, setPlayers, gameState, setGameState } = useGameProvider()
-  const [playerBids, setPlayerBids] = useState(socketUser.bids ? socketUser.bids : {})
-  const [startingTokens, setStartingTokens] = useState(
-    socketUser.bids ? { gold: 0, blackmail: 0, force: 0 } : { gold: 3, blackmail: 1, force: 1 }
-  )
-  const [remainingTokens, setRemainingTokens] = useState(startingTokens)
+  const { gamePlayer, setGamePlayer, gameState, setGameState } = useGameProvider()
+  const [playerBids, setPlayerBids] = useState(gamePlayer.bids ? gamePlayer.bids : {})
+  const [remainingTokens, setRemainingTokens] = useState({ gold: 0, blackmail: 0, force: 0, ...gamePlayer.startingtokens })
 
   const stateVariables = {
     playerBids,
@@ -18,11 +15,12 @@ export const BiddingBoard = () => {
     remainingTokens,
     setRemainingTokens
   }
+  console.log("gameState", gameState)
+  console.log("gamePlayer", gamePlayer)
   return (
     <div>
-      {gameState.phase === "bidding" ? (
+      {!Object.keys(gamePlayer.bids).length ? (
         <>
-          {" "}
           <Button
             onClick={() => {
               if (
@@ -40,7 +38,7 @@ export const BiddingBoard = () => {
           <Button
             onClick={() => {
               setPlayerBids({})
-              setRemainingTokens(startingTokens)
+              setRemainingTokens(gamePlayer.startingtokens)
             }}
           >
             Clear Bids
@@ -59,14 +57,14 @@ export const BiddingBoard = () => {
       ) : (
         ""
       )}
-      <Grid
-        templateRows="repeat(3, 1fr)"
-        templateColumns="repeat(4, 1fr)"
-        gap={2} // Adjust the gap as needed
-        p={3} // Adjust padding as needed
-      >
-        {gameState.bidBoard?.map((space) => {
-          return <BidSpace {...{ space, ...stateVariables }} />
+      <Grid templateRows="repeat(3, 1fr)" templateColumns="repeat(4, 1fr)" gap={2} p={3}>
+        {gameState.bidboard?.map((bidSpace) => {
+          return (
+            <BidSpace
+              key={`bidSpace-${bidSpace.id}`}
+              {...{ bidSpace, playerBids, setPlayerBids, remainingTokens, setRemainingTokens }}
+            />
+          )
         })}
       </Grid>
     </div>

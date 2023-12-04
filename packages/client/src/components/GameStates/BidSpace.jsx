@@ -4,17 +4,17 @@ import { BidIcon } from "./BidIcon"
 import { useGameProvider } from "../../providers/GameProvider"
 
 export const BidSpace = (props) => {
-  const { space, playerBids } = props
+  const { bidSpace, playerBids } = props
   const { gameState } = useGameProvider()
   let backgroundColor = ""
   let acceptedTokens = []
-  if (space.noForce && !space.noBlackmail) {
+  if (bidSpace.noForce && !bidSpace.noBlackmail) {
     backgroundColor = "red"
     acceptedTokens = ["gold", "blackmail"]
-  } else if (space.noBlackmail && !space.noForce) {
+  } else if (bidSpace.noBlackmail && !bidSpace.noForce) {
     backgroundColor = "black"
     acceptedTokens = ["gold", "force"]
-  } else if (space.noBlackmail && space.noForce) {
+  } else if (bidSpace.noBlackmail && bidSpace.noForce) {
     backgroundColor = "orange"
     acceptedTokens = ["gold"]
   } else {
@@ -22,65 +22,61 @@ export const BidSpace = (props) => {
     acceptedTokens = ["gold", "blackmail", "force"]
   }
   if (gameState.phase !== "bidding") {
-    const playerBidComponent = gameState.players.map((player, index) => {
-      const playerBidIcons = (
-        <GridItem>
-          {gameState.bidResults[space.id]?.winner === player.username
-            ? "Winner"
-            : gameState.bidResults[space.id]?.tie?.includes(player.username)
-              ? "Tie"
-              : ""}
-          <Text>{player.username}</Text>
-          <Flex justifyContent={"center"}>
-            {acceptedTokens.map((token) => {
-              if (!player.bids[space.id]?.[token] || player.bids[space.id]?.[token] === 0) {
-                return ""
-              }
-              return (
-                <div>
-                  <BidIcon {...{ token, ...props }} />
-                  <Text>{player.bids[space.id]?.[token] ?? 0}</Text>
-                </div>
-              )
-            })}
-          </Flex>
-        </GridItem>
-      )
-      if (index === 0) {
-        return (
-          <>
-            {playerBidIcons}
-            <GridItem rowSpan={2}>
-              {space.name}
-              {space.benefits.map((benefit) => {
-                return <div>{benefit.name}</div>
-              })}
-            </GridItem>
-          </>
-        )
-      }
-      return playerBidIcons
-    })
     return (
-      <GridItem key={space.id} style={{ border: "solid black 1px", textAlign: "center", backgroundColor }}>
-        <Grid templateRows={`repeat(${gameState.players.length > 2 ? 2 : 1}, 1fr)`} templateColumns="repeat(3, 1fr)" gap={1}>
-          {playerBidComponent}
+      <GridItem style={{ border: "solid black 1px", textAlign: "center", backgroundColor }}>
+        <Grid
+          templateAreas={`"player-1 benefits player-2"${gameState.players.length > 2 ? "player-3 benefits player-4" : ""}`}
+          // templateRows={`repeat(${gameState.players.length > 2 ? 2 : 1}, 1fr)`}
+          // templateColumns="repeat(3, 1fr)"
+          gap={1}
+        >
+          <GridItem area={"benefits"}>
+            {bidSpace.name}
+            {bidSpace.benefits.map((benefit, index) => {
+              return <div key={index}>{benefit.name}</div>
+            })}
+          </GridItem>
+          {Object.values(gameState.players).map((player, index) => {
+            return (
+              <GridItem area={`player-${index + 1}`} key={index}>
+                {gameState.highestbids[bidSpace.id]?.winner === player.username
+                  ? "Winner"
+                  : gameState.highestbids[bidSpace.id]?.tie?.includes(player.username)
+                    ? "Tie"
+                    : ""}
+                <Text>{player.username}</Text>
+                <Flex justifyContent={"center"}>
+                  {acceptedTokens.map((token, index) => {
+                    if (!player.bids[bidSpace.id]?.[token] || player.bids[bidSpace.id]?.[token] === 0) {
+                      return ""
+                    }
+                    return (
+                      <div key={index}>
+                        <BidIcon {...{ token, ...props }} />
+                        <Text>{player.bids[bidSpace.id]?.[token] ?? 0}</Text>
+                      </div>
+                    )
+                  })}
+                </Flex>
+              </GridItem>
+            )
+          })}
         </Grid>
       </GridItem>
     )
   }
   return (
-    <GridItem key={space.id} style={{ border: "solid black 1px", textAlign: "center", backgroundColor }}>
-      {space.name}
-      {space.benefits.map((benefit) => {
-        return <div>{benefit.name}</div>
+    <GridItem style={{ border: "solid black 1px", textAlign: "center", backgroundColor }}>
+      {bidSpace.name}
+      {bidSpace.benefits.map((benefit, index) => {
+        return <div key={index}>{benefit.name}</div>
       })}
       <Flex justifyContent={"center"}>
-        {acceptedTokens.map((token) => {
+        {acceptedTokens.map((token, index) => {
           return (
-            <div>
+            <div key={index}>
               <BidIcon {...{ token, ...props }} />
-              <Text>{playerBids[space.id]?.[token] ?? 0}</Text>
+              <Text>{playerBids[bidSpace.id]?.[token] ?? 0}</Text>
             </div>
           )
         })}

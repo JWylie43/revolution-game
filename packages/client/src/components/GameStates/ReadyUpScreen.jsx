@@ -3,12 +3,10 @@ import { socket } from "../../socket"
 import { useGameProvider } from "../../providers/GameProvider"
 
 export const ReadyUpScreen = () => {
-  const { socketUser, setSocketUser, players, setPlayers, gameState, setGameState } = useGameProvider()
-  console.log("gameState", gameState)
-
+  const { gamePlayer, setGamePlayer, gameState, setGameState } = useGameProvider()
   return (
     <div>
-      Room: {socketUser.room}
+      Room: {gamePlayer.room}
       <Button
         onClick={() => {
           socket.emit("setReadyUp")
@@ -16,7 +14,7 @@ export const ReadyUpScreen = () => {
       >
         Ready Up
       </Button>
-      {gameState?.players?.map((player) => {
+      {Object.values(gameState.players).map((player) => {
         return (
           <div key={player.userid}>
             Username: {player.username} | Ready: {player.ready ? "yes" : "no"}
