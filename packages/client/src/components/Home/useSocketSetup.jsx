@@ -19,11 +19,15 @@ export const useSocketSetup = () => {
       setGameState(state)
       setGamePlayer(state.players[user.username])
     })
+    socket.on("notifyPlayers", ({ title, message }) => {
+      console.log(title, message)
+    })
     return () => {
       socket.off("connect_error")
       socket.off("userConnected")
       socket.off("setPlayersInRoom")
       socket.off("setGameState")
+      socket.off("notifyPlayers")
       socket.disconnect()
     }
   }, [])

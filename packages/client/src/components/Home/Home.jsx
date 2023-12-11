@@ -16,6 +16,7 @@ export const Home = ({ setAction }) => {
   const navigate = useNavigate()
   useSocketSetup()
   useEffect(() => {
+    console.log("gamePlayer", gamePlayer)
     if (!gamePlayer) {
       return
     }

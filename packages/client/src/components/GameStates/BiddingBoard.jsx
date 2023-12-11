@@ -43,16 +43,16 @@ export const BiddingBoard = () => {
           >
             Clear Bids
           </Button>
-          <Text>
+          <div>
             Remaining Tokens:
-            {Object.entries(remainingTokens).map(([token, count]) => {
+            {Object.entries(remainingTokens).map(([token, count], index) => {
               return (
-                <Text>
+                <Text key={index}>
                   {token}: {count}
                 </Text>
               )
             })}
-          </Text>
+          </div>
         </>
       ) : (
         ""

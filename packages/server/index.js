@@ -51,12 +51,20 @@ io.on("connect", async (socket) => {
   console.log("connecting")
   const { username, userid } = socket.request.session.user
   socket.username = username
+  // socket.emit("notifyPlayers", { title: "redisUser", message: await redisClient.get(`username:${username}`) })
+
   const initializePlayer = {
     ...JSON.parse(await redisClient.get(`username:${username}`)),
     username,
     userid,
     connected: true
   }
+  // socket.emit("notifyPlayers", { title: "initializePlayer", message: initializePlayer })
+  if (initializePlayer.room) {
+    initializePlayer.rejoinroom = initializePlayer.room
+    initializePlayer.room = null
+  }
+  // socket.emit("notifyPlayers", { title: "initializePlayer", message: initializePlayer })
   await redisClient.set(`username:${username}`, JSON.stringify(initializePlayer))
   socket.emit("initializePlayer", initializePlayer)
 
@@ -77,6 +85,7 @@ io.on("connect", async (socket) => {
       bidboard: bidBoard,
       gameboard: gameBoard
     }
+
     const playerInGame = gameState.players[playerData.username]
     const maximumPlayersMet = Object.keys(gameState.players).length >= 4
     if (!playerInGame && (gameState?.phase !== "lobby" || maximumPlayersMet)) {
@@ -113,7 +122,7 @@ io.on("connect", async (socket) => {
           startingtokens: { gold: 3, blackmail: 1, force: 1 },
           bids: {},
           support: 0,
-          influence: {},
+          // influence: {},
           color: playerColors[index]
         }
         gameState.players[player.username] = playerUpdates
@@ -125,7 +134,6 @@ io.on("connect", async (socket) => {
       io.to(playerData.room).emit("setGameState", gameState)
     }
   })
-
   socket.on("submitBids", async (bids) => {
     let playerData = JSON.parse(await redisClient.get(`username:${socket.username}`))
     const gameState = JSON.parse(await redisClient.get(`gamestate:${playerData.room}`))
@@ -140,121 +148,159 @@ io.on("connect", async (socket) => {
       return Object.keys(bids).length
     })
     if (allBidsSubmitted) {
-      const bidResults = compareAllBids({ playersInGame: Object.values(gameState.players) })
-      await test({ playerData, gameState, bidResults })
+      await resolveBids({ room: playerData.room, gameState })
     }
   })
-  socket.on("testing", async () => {
-    let playerData = JSON.parse(await redisClient.get(`username:${socket.username}`))
-    const gameState = JSON.parse(await redisClient.get(`gamestate:${playerData.room}`))
-    const bidResults = compareAllBids({ playersInGame: Object.values(gameState.players) })
-    console.log("bidResults", bidResults)
-    await test({ playerData, gameState, bidResults })
-  })
 
-  const test = async ({ playerData, gameState, bidResults }) => {
-    const spacesWon = Object.entries(bidResults)
-      .filter(([person, values]) => {
-        return values.winner
-      })
-      .map(([person, values]) => {
-        return { person, player: values.winner }
-      })
-    const biddingResults = Object.keys(gameState.players).reduce((result, current) => {
-      result[current] = {}
+  const resolveBids = async ({ room, gameState }) => {
+    const highestBids = findHighestBids({ playersInGame: Object.values(gameState.players) })
+    gameState.highestbids = highestBids
+    const spacesWon = Object.entries(highestBids).reduce((result, [space, { winner }]) => {
+      if (winner) {
+        result[space] = winner
+      }
+      return result
+    }, {})
+    const playerBenefits = Object.entries(spacesWon).reduce((result, [space, player]) => {
+      const benefitsAwarded = bidBoard.find(({ id }) => {
+        return id == space
+      })?.benefits
+      if (!result[player]) {
+        result[player] = {}
+      }
+      if (benefitsAwarded) {
+        benefitsAwarded.forEach(({ benefit }) => {
+          if (benefit.includes("support")) {
+            const [_, amount] = benefit.split("-")
+            if (!result[player].support) {
+              result[player].support = 0
+            }
+            result[player].support += parseInt(amount)
+          } else if (benefit.includes("-")) {
+            const [token, amount] = benefit.split("-")
+            if (!result[player].tokenswon) {
+              result[player].tokenswon = { [token]: 0 }
+            }
+            if (!result[player].tokenswon[token]) {
+              result[player].tokenswon[token] = 0
+            }
+            result[player].tokenswon[token] += parseInt(amount)
+          } else if (benefit === "replace") {
+            result[player].replace = true
+            gameState.playerToReplace = player
+          } else if (benefit === "swap") {
+            result[player].swap = true
+            gameState.playerToSwap = player
+          } else {
+            if (!result[player].influence) {
+              result[player].influence = []
+            }
+            result[player].influence = [...result[player].influence, benefit]
+          }
+        })
+      }
       return result
     }, {})
 
-    spacesWon.forEach((spaces) => {
-      const { player } = spaces
-      const benefitsAwarded = bidBoard.find((person) => {
-        return person.id == spaces.person
-      })?.benefits
-      benefitsAwarded.forEach(({ benefit }) => {
-        if (benefit.includes("support")) {
-          const [_, amount] = benefit.split("-")
-          if (!biddingResults[player].support) {
-            biddingResults[player].support = 0
-          }
-          biddingResults[player].support += parseInt(amount)
-        } else if (benefit.includes("-")) {
-          const [token, amount] = benefit.split("-")
-          if (!biddingResults[player].tokenswon) {
-            biddingResults[player].tokenswon = { [token]: 0 }
-          }
-          if (!biddingResults[player].tokenswon[token]) {
-            biddingResults[player].tokenswon[token] = 0
-          }
-          biddingResults[player].tokenswon[token] += parseInt(amount)
-        } else if (benefit === "replace") {
-          biddingResults[player].replace = true
-        } else if (benefit === "swap") {
-          biddingResults[player].swap = true
-        } else {
-          if (!biddingResults[player].influence) {
-            biddingResults[player].influence = []
-          }
-          biddingResults[player].influence = [...biddingResults[player].influence, benefit]
-        }
-      })
-    })
-    console.log("biddingResults", biddingResults)
-    let gameBoardCopy = [...gameState.gameboard]
     for (const player of Object.values(gameState.players)) {
-      console.log("test", biddingResults[player.username])
-
-      const { tokenswon = {}, support = 0, replace = false, swap = false, influence = [] } = biddingResults[player.username]
-
-      const totalTokensWon = Object.values(tokenswon).reduce((result, current) => {
-        result += current
+      const { tokenswon = {}, support = 0, replace = false, swap = false, influence = [] } = playerBenefits[player.username]
+      const totalTokensWon = Object.values(tokenswon).reduce((result, tokenCount) => {
+        result += tokenCount
         return result
       }, 0)
       const additionalGold = totalTokensWon < 5 ? 5 - totalTokensWon : 0
       const startingTokens = { ...tokenswon }
-      console.log("additionalGold", additionalGold)
-      console.log("startingTokens", startingTokens)
       if (additionalGold) {
-        if (startingTokens.gold) {
-          startingTokens.gold += additionalGold
-        } else {
-          startingTokens.gold = additionalGold
-        }
+        startingTokens.gold = (startingTokens.gold ?? 0) + additionalGold
       }
-      console.log("startingTokens", startingTokens)
       const playerUpdates = {
         ...player,
         startingtokens: startingTokens,
         tokenswon,
         additionalgold: additionalGold,
-        support: player.support + support,
+        support: (player.support ?? 0) + support,
         replace,
         swap
       }
       gameState.players[player.username] = playerUpdates
       await redisClient.set(`username:${player.username}`, JSON.stringify(playerUpdates))
 
-      console.log("influence", influence)
-
       influence.forEach((locationId) => {
-        gameBoardCopy.forEach((location) => {
+        gameState.gameboard.forEach((location) => {
           if (location.id === locationId) {
             location.influence = [...location.influence, player.username]
           }
         })
       })
     }
-    console.log("gameBoardCopy", gameBoardCopy)
-    gameState.gameboard = [...gameBoardCopy]
-    gameState.phase = "replace"
-    await redisClient.set(`gamestate:${playerData.room}`, JSON.stringify(gameState))
-    io.to(playerData.room).emit("setGameState", gameState)
+
+    gameState.phase = gameState.playerToReplace ? "replace" : gameState.playerToSwap ? "swap" : "bidding"
+    checkForWinner()
+    await redisClient.set(`gamestate:${room}`, JSON.stringify(gameState))
+    io.to(room).emit("setGameState", gameState)
+  }
+  const checkForWinner = async () => {
+    let playerData = JSON.parse(await redisClient.get(`username:${socket.username}`))
+    const gameState = JSON.parse(await redisClient.get(`gamestate:${playerData.room}`))
+    const gameOver = gameState.gameboard.every((location) => {
+      const arrayLength = location.influence.length === location.spaces
+      const allSpacesFilled = location.influence.every((space) => {
+        return !!space
+      })
+      return arrayLength && allSpacesFilled
+    })
+    io.to(playerData.room).emit("notifyPlayers", { title: "gameOver", message: gameOver })
   }
 
+  socket.on("replaceInfluence", async (space) => {
+    let playerData = JSON.parse(await redisClient.get(`username:${socket.username}`))
+    const gameState = JSON.parse(await redisClient.get(`gamestate:${playerData.room}`))
+    const [location, player, index] = spaceA.split("-")
+    const boardLocation = gameState.gameboard.find((loc) => {
+      return loc.id === location
+    })
+    boardLocation.influence[index] = socket.username
+    playerData = { ...playerData, replace: false }
+    gameState.playerToReplace = null
+    gameState.phase = gameState.playerToSwap ? "swap" : "bidding"
+    checkForWinner()
+    gameState.players = { ...gameState.players, [playerData.username]: playerData }
+    await redisClient.set(`username:${playerData.username}`, JSON.stringify(playerData))
+    await redisClient.set(`gamestate:${playerData.room}`, JSON.stringify(gameState))
+    io.to(playerData.room).emit("setGameState", gameState)
+  })
+  socket.on("swapInfluence", async ([spaceA, spaceB]) => {
+    console.log("selectedSpaces", spaceA)
+    console.log("selectedSpaces", spaceB)
+    let playerData = JSON.parse(await redisClient.get(`username:${socket.username}`))
+    const gameState = JSON.parse(await redisClient.get(`gamestate:${playerData.room}`))
+    const [locationA, playerA, indexA] = spaceA.split("-")
+    const [locationB, playerB, indexB] = spaceB.split("-")
+    const boardLocationA = gameState.gameboard.find((loc) => {
+      return loc.id === locationA
+    })
+    const boardLocationB = gameState.gameboard.find((loc) => {
+      return loc.id === locationB
+    })
+    boardLocationA.influence[indexA] = playerB
+    boardLocationB.influence[indexB] = playerA
+    playerData = { ...playerData, swap: false }
+    gameState.playerToSwap = null
+    gameState.phase = "bidding"
+    checkForWinner()
+    gameState.players = { ...gameState.players, [playerData.username]: playerData }
+    await redisClient.set(`username:${playerData.username}`, JSON.stringify(playerData))
+    await redisClient.set(`gamestate:${playerData.room}`, JSON.stringify(gameState))
+    io.to(playerData.room).emit("setGameState", gameState)
+  })
+  socket.on("testing", async () => {
+    checkForWinner()
+  })
   socket.on("disconnecting", async () => {
     console.log("disconnecting", socket.username)
     let playerData = JSON.parse(await redisClient.get(`username:${socket.username}`))
     if (playerData) {
-      if (playerData.room || playerData?.rejoinroom) {
+      if (playerData.room) {
         const gameState = JSON.parse(await redisClient.get(`gamestate:${playerData.room}`))
         if (gameState) {
           if (gameState.phase === "lobby") {
@@ -274,12 +320,12 @@ io.on("connect", async (socket) => {
             }
             await redisClient.set(`gamestate:${playerData.room}`, JSON.stringify(gameState))
             io.to(playerData.room).emit("setGameState", gameState)
-            return
           }
         }
       } else if (playerData.rejoinroom) {
         await redisClient.set(`username:${playerData.username}`, JSON.stringify({ ...playerData, connected: false }))
       }
+      return
     }
     await redisClient.set(`username:${socket.username}`, JSON.stringify({ connected: false }))
   })
@@ -469,7 +515,7 @@ const bidBoard = [
   }
 ]
 
-const compareAllBids = ({ playersInGame }) => {
+const findHighestBids = ({ playersInGame }) => {
   return playersInGame.reduce((winningBids, player) => {
     Object.entries(player.bids).forEach(([person, bid]) => {
       const winningBid = compareBids({
