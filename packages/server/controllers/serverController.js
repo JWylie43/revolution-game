@@ -3,7 +3,6 @@ require("dotenv").config()
 const session = require("express-session")
 const RedisStore = require("connect-redis").default
 const { ipaddress } = require("@revolution-game/common")
-
 const sessionMiddleware = session({
   secret: process.env.COOKIE_SECRET,
   credentials: true,

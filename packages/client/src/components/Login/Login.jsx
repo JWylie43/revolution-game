@@ -16,6 +16,7 @@ export const Login = (props) => {
       onSubmit={async (values, actions) => {
         try {
           actions.resetForm()
+          console.log(ipaddress)
           const loginResponse = await fetch(`http://${ipaddress}:4000/auth/login`, {
             method: "POST",
             credentials: "include",
@@ -24,6 +25,7 @@ export const Login = (props) => {
             },
             body: JSON.stringify(values)
           })
+          console.log("loginResponse", loginResponse)
           if (!loginResponse || !loginResponse.ok || loginResponse.status >= 400) {
             return
           }
