@@ -1,4 +1,5 @@
-import { FormControl, FormErrorMessage, FormLabel, Input } from "@chakra-ui/react"
+import { FormControl, FormErrorMessage, FormLabel } from "@chakra-ui/form-control"
+import { Input } from "@chakra-ui/input"
 import { Field, useField } from "formik"
 
 const TextField = ({ label, ...props }) => {

@@ -1,12 +1,18 @@
-import { AccountProvider } from "./providers/AccountProvider"
-import { ToggleColorMode } from "./components/ToggleColorMode"
-import { Authenticate } from "./components/Authenticate"
-import "./app.css"
-export const App = () => {
+import { ToggleColorMode } from "./components/ToggleColorMode.jsx"
+import { Route, Routes } from "react-router-dom"
+import Login from "./components/Login.jsx"
+import Register from "./components/Register.jsx"
+const App = () => {
   return (
-    <AccountProvider>
-      <Authenticate />
+    <>
       <ToggleColorMode />
-    </AccountProvider>
+      <Routes>
+        <Route path="/" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="*" element={<Login />} />
+      </Routes>
+    </>
   )
 }
+
+export default App
