@@ -36,51 +36,52 @@ const validateForm = (req, res, next) => {
 //   else next()
 // }
 const attemptLogin = async (req, res) => {
-  const potentialLogin = await pool.query("SELECT id, username, passhash, userid FROM users u WHERE u.username=$1", [
-    req.body.username
-  ])
-  if (potentialLogin.rowCount > 0) {
-    const isSamePass = await bcrypt.compare(req.body.password, potentialLogin.rows[0].passhash)
-    if (isSamePass) {
+  console.log("session", req.session)
+  const { username, password } = req.body
+  const existingUser = await pool.query("SELECT * FROM users WHERE username=$1", [username])
+  if (existingUser.rows.length) {
+    const userInfo = existingUser.rows[0]
+    const passwordsMatch = await bcrypt.compare(password, userInfo.passhash)
+    if (passwordsMatch) {
       req.session.user = {
-        username: req.body.username,
-        id: potentialLogin.rows[0].id,
-        userid: potentialLogin.rows[0].userid
+        username,
+        id: userInfo.id,
+        userid: userInfo.userid
       }
-      res.json({ loggedIn: true, username: req.body.username })
+      res.json({ loggedIn: true, username })
     } else {
       res.json({ loggedIn: false, status: "Wrong username or password!" })
-      console.log("not good")
+      console.log("Wrong username or password!")
     }
   } else {
-    console.log("not good")
     res.json({ loggedIn: false, status: "Wrong username or password!" })
+    console.log("Wrong username or password!")
   }
 }
 const attemptRegister = async (req, res) => {
-  const existingUser = await pool.query("SELECT username from users WHERE username=$1", [req.body.username])
-
-  if (existingUser.rowCount === 0) {
-    // register
-    const hashedPass = await bcrypt.hash(req.body.password, 10)
-    const newUserQuery = await pool.query(
+  const { username, password } = req.body
+  const existingUser = await pool.query("SELECT username from users WHERE username=$1", [username])
+  if (!existingUser.rows.length) {
+    const hashedPass = await bcrypt.hash(password, 10)
+    const newUser = await pool.query(
       "INSERT INTO users(username, passhash, userid) values($1,$2,$3) RETURNING id, username, userid",
-      [req.body.username, hashedPass, uuidv4()]
+      [username, hashedPass, uuidv4()]
     )
     req.session.user = {
-      username: req.body.username,
-      id: newUserQuery.rows[0].id,
-      userid: newUserQuery.rows[0].userid
+      username,
+      id: newUser.rows[0].id,
+      userid: newUser.rows[0].userid
     }
-    res.json({ loggedIn: true, username: req.body.username })
+    res.json({ loggedIn: true, username })
   } else {
+    console.log("Username Taken")
     res.json({ loggedIn: false, status: "Username taken" })
   }
 }
 // router.route("/login").get(handleLogin).post(validateForm, rateLimiter(60, 10), attemptLogin)
 router.post("/login", validateForm, attemptLogin)
-// router.post("/signup", validateForm, rateLimiter(30, 4), attemptRegister)
-router.post("/signup", validateForm, attemptRegister)
+// router.post("/register", validateForm, rateLimiter(30, 4), attemptRegister)
+router.post("/register", validateForm, attemptRegister)
 // router.delete("/logout", rateLimiter(30, 4), logoutDelete)
 // router.delete("/logout", logoutDelete)
 module.exports = router

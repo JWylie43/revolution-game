@@ -14,7 +14,6 @@ const Login = () => {
         password: Yup.string().required("Password required!").min(6, "Password too short!").max(28, "Password too long!")
       })}
       onSubmit={(values, actions) => {
-        alert(JSON.stringify(values, null, 2))
         actions.resetForm()
         fetch("http://localhost:4000/auth/login", {
           method: "POST",
@@ -40,6 +39,7 @@ const Login = () => {
               return
             }
             console.log("data", data)
+            navigate("/home")
           })
       }}
     >
