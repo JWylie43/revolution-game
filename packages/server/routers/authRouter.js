@@ -35,6 +35,14 @@ const validateForm = (req, res, next) => {
 //     })
 //   else next()
 // }
+const handleLogin = (req, res) => {
+  console.log("req", req.session)
+  if (req.session.user && req.session.user.username) {
+    res.json({ loggedIn: true, username: req.session.user.username })
+  } else {
+    res.json({ loggedIn: false })
+  }
+}
 const attemptLogin = async (req, res) => {
   console.log("session", req.session)
   const { username, password } = req.body
@@ -78,10 +86,19 @@ const attemptRegister = async (req, res) => {
     res.json({ loggedIn: false, status: "Username taken" })
   }
 }
+const handleLogout = async (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      return res.status(500).json({ loggedOut: false, status: "Error during logout" })
+    }
+    res.clearCookie("sid") // Clear the session cookie
+    res.json({ loggedOut: true })
+  })
+}
 // router.route("/login").get(handleLogin).post(validateForm, rateLimiter(60, 10), attemptLogin)
-router.post("/login", validateForm, attemptLogin)
+router.route("/login").get(handleLogin).post(validateForm, attemptLogin)
 // router.post("/register", validateForm, rateLimiter(30, 4), attemptRegister)
 router.post("/register", validateForm, attemptRegister)
 // router.delete("/logout", rateLimiter(30, 4), logoutDelete)
-// router.delete("/logout", logoutDelete)
+router.delete("/logout", handleLogout)
 module.exports = router

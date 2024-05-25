@@ -1,11 +1,13 @@
 import { createContext, useState, useEffect, useContext } from "react"
+import { useNavigate } from "react-router-dom"
 
 export const AccountContext = createContext()
 export const useAccountProvider = () => {
   return useContext(AccountContext)
 }
 export const AccountProvider = ({ children }) => {
-  const [accountInfo, setAccountInfo] = useState({ loggedIn: false })
+  const [accountInfo, setAccountInfo] = useState({ loggedIn: null })
+  const navigate = useNavigate()
   useEffect(() => {
     const reloadSession = async () => {
       try {
@@ -16,10 +18,12 @@ export const AccountProvider = ({ children }) => {
           return
         }
         const data = await loginResponse.json()
+        console.log("accountProvider data", data)
         if (!data) {
           return
         }
         setAccountInfo({ ...data })
+        navigate("/")
       } catch (e) {
         console.error("reloadSession", e)
       }

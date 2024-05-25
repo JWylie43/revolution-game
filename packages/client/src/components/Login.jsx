@@ -3,9 +3,11 @@ import { Form, Formik } from "formik"
 import { useNavigate } from "react-router"
 import * as Yup from "yup"
 import TextField from "./TextField"
+import { useAccountProvider } from "../providers/AccountProvider.jsx"
 
 const Login = () => {
   const navigate = useNavigate()
+  const { accountInfo, setAccountInfo } = useAccountProvider()
   return (
     <Formik
       initialValues={{ username: "", password: "" }}
@@ -29,7 +31,6 @@ const Login = () => {
           })
           .then((response) => {
             if (!response || !response.ok || response.status >= 400) {
-              console.error("response", response)
               return
             }
             return response.json()
@@ -38,8 +39,8 @@ const Login = () => {
             if (!data) {
               return
             }
-            console.log("data", data)
-            navigate("/home")
+            setAccountInfo({ ...data })
+            navigate("/")
           })
       }}
     >
