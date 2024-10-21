@@ -4,9 +4,9 @@ const Yup = require("yup")
 const pool = require("../db")
 const bcrypt = require("bcrypt")
 const { v4: uuidv4 } = require("uuid")
+const redisClient = require("../redis")
 
 const validateForm = (req, res, next) => {
-  console.log("req", req)
   const formData = req.body
   Yup.object({
     username: Yup.string().required("Username required").min(6, "Username too short").max(28, "Username too long!"),
@@ -18,33 +18,31 @@ const validateForm = (req, res, next) => {
     })
     .then((valid) => {
       if (valid) {
+        console.log("valid", valid)
         next()
       } else {
         res.status(422).send()
       }
     })
 }
-// const rateLimiter = (secondsLimit, limitAmount) => async (req, res, next) => {
-//   const ip = req.connection.remoteAddress
-//   ;[response] = await redisClient.multi().incr(ip).expire(ip, secondsLimit).exec()
-//
-//   if (response[1] > limitAmount)
-//     res.json({
-//       loggedIn: false,
-//       status: "Slow down!! Try again in a minute."
-//     })
-//   else next()
-// }
+const rateLimiter = (secondsLimit, limitAmount) => async (req, res, next) => {
+  const ip = req.connection.remoteAddress
+  const [response] = await redisClient.multi().incr(ip).expire(ip, secondsLimit).exec()
+  if (response[1] > limitAmount)
+    res.json({
+      loggedIn: false,
+      status: "Slow down!! Try again in a minute."
+    })
+  else next()
+}
 const handleLogin = (req, res) => {
-  console.log("req", req.session)
   if (req.session.user && req.session.user.username) {
-    res.json({ loggedIn: true, username: req.session.user.username })
+    res.json({ loggedIn: true, ...req.session.user })
   } else {
     res.json({ loggedIn: false })
   }
 }
 const attemptLogin = async (req, res) => {
-  console.log("session", req.session)
   const { username, password } = req.body
   const existingUser = await pool.query("SELECT * FROM users WHERE username=$1", [username])
   if (existingUser.rows.length) {
@@ -53,17 +51,14 @@ const attemptLogin = async (req, res) => {
     if (passwordsMatch) {
       req.session.user = {
         username,
-        id: userInfo.id,
-        userid: userInfo.userid
+        userId: userInfo.userid
       }
-      res.json({ loggedIn: true, username })
+      res.json({ loggedIn: true, ...req.session.user })
     } else {
       res.json({ loggedIn: false, status: "Wrong username or password!" })
-      console.log("Wrong username or password!")
     }
   } else {
     res.json({ loggedIn: false, status: "Wrong username or password!" })
-    console.log("Wrong username or password!")
   }
 }
 const attemptRegister = async (req, res) => {
@@ -77,10 +72,9 @@ const attemptRegister = async (req, res) => {
     )
     req.session.user = {
       username,
-      id: newUser.rows[0].id,
-      userid: newUser.rows[0].userid
+      userId: newUser.rows[0].userid
     }
-    res.json({ loggedIn: true, username })
+    res.json({ loggedIn: true, ...req.session.user })
   } else {
     console.log("Username Taken")
     res.json({ loggedIn: false, status: "Username taken" })
@@ -91,14 +85,11 @@ const handleLogout = async (req, res) => {
     if (err) {
       return res.status(500).json({ loggedOut: false, status: "Error during logout" })
     }
-    res.clearCookie("sid") // Clear the session cookie
+    res.clearCookie("sid")
     res.json({ loggedOut: true })
   })
 }
-// router.route("/login").get(handleLogin).post(validateForm, rateLimiter(60, 10), attemptLogin)
-router.route("/login").get(handleLogin).post(validateForm, attemptLogin)
-// router.post("/register", validateForm, rateLimiter(30, 4), attemptRegister)
+router.route("/login").get(handleLogin).post(validateForm, rateLimiter(60, 10), attemptLogin)
 router.post("/register", validateForm, attemptRegister)
-// router.delete("/logout", rateLimiter(30, 4), logoutDelete)
 router.delete("/logout", handleLogout)
 module.exports = router
