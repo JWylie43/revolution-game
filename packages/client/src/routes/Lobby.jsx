@@ -3,6 +3,7 @@ import { useNavigate, useLocation, useParams, Navigate } from "react-router-dom"
 import { useSocketProvider } from "../providers/SocketProvider.jsx"
 import { useEffect, useState } from "react"
 import { Button } from "@chakra-ui/react"
+import { BidBoard } from "./bid-board.jsx"
 
 export const Lobby = () => {
   const { roomId } = useParams()
@@ -47,8 +48,13 @@ export const Lobby = () => {
     })
     socket.on("startGame", (data) => {
       console.log("startGame", data) // Notify the current user
-      setGameState("start")
+      setGameState("bidding")
       setPlayersInGame(data)
+    })
+    socket.on("endGame", (data) => {
+      console.log("endGame", data) // Notify the current user
+      // setGameState("end")
+      navigate("/")
     })
     socket.on("errorJoiningRoom", (data) => {
       console.log("errorJoiningRoom", data) // Notify the current user
@@ -61,6 +67,9 @@ export const Lobby = () => {
     }
   }, [])
   if (gameState) {
+    if (gameState === "bidding") {
+      return <BidBoard />
+    }
     return (
       <>
         <div>{gameState}</div>

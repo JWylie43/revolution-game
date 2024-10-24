@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect, useContext } from "react"
 import { io } from "socket.io-client"
+import { ipAddress } from "../constants.js"
 
 export const SocketContext = createContext()
 export const useSocketProvider = () => {
@@ -7,11 +8,11 @@ export const useSocketProvider = () => {
 }
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null)
-  const [userInformation, setUserInformation] = useState(null)
+  const [playerInfo, setPlayerInfo] = useState({})
   const [connected, setConnected] = useState(false)
 
   useEffect(() => {
-    const socketConnection = new io("http://192.168.86.41:4000", {
+    const socketConnection = new io(`http://${ipAddress}:4000`, {
       autoConnect: false,
       withCredentials: true
     })
@@ -23,8 +24,11 @@ export const SocketProvider = ({ children }) => {
       console.warn("Successfully connected to the socket server")
       setConnected(true)
     })
-    socketConnection.on("userInfo", (user) => {
-      console.log("User info:", user)
+    socketConnection.on("playerInfo", (data) => {
+      setPlayerInfo(data)
+    })
+    socketConnection.on("serverNotification", (data) => {
+      alert(data)
     })
     setSocket(socketConnection)
     return () => {
@@ -32,5 +36,5 @@ export const SocketProvider = ({ children }) => {
     }
   }, [])
 
-  return <SocketContext.Provider value={{ socket, connected }}>{children}</SocketContext.Provider>
+  return <SocketContext.Provider value={{ socket, connected, playerInfo }}>{children}</SocketContext.Provider>
 }

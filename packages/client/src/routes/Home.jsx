@@ -8,14 +8,10 @@ export const Home = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { accountInfo, setAccountInfo, logout } = useAccountProvider()
-  const { socket, connected } = useSocketProvider()
-  const [playerInfo, setPlayerInfo] = useState({})
+  const { socket, connected, playerInfo } = useSocketProvider()
   console.log("socket", socket)
   useEffect(() => {
     socket.emit("getPlayerInfo")
-    socket.on("playerInfo", (data) => {
-      setPlayerInfo(data)
-    })
     return () => {}
   }, [])
   console.log("playerInfo", playerInfo)

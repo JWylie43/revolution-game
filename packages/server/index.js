@@ -14,7 +14,7 @@ const server = require("http").createServer(app)
 app.use(helmet())
 app.use(express.json())
 const corsObject = {
-  origin: ["http://localhost:5173", `http://192.168.86.41:5173`],
+  origin: ["http://localhost:5173", `http://192.168.87.208:5173`],
   credentials: true
 }
 app.use(cors(corsObject))
@@ -63,8 +63,8 @@ io.use(async (socket, next) => {
   }
 })
 io.on("connect", async (socket) => {
-  const getPlayerInfo = () => {
-    return redisClient.hgetall(`playerInfo:${socket.request.session.user.userId}`)
+  const getPlayerInfo = (userId = socket.request.session.user.userId) => {
+    return redisClient.hgetall(`playerInfo:${userId}`)
   }
   socket.emit("playerInfo", await getPlayerInfo())
   socket.on("getPlayerInfo", async () => {
@@ -132,7 +132,9 @@ io.on("connect", async (socket) => {
         return user.isReady === "true"
       })
     ) {
-      await redisClient.set(`game:${playerInfo.lobbyId}:state`, "started")
+      await redisClient.set(`game:${playerInfo.lobbyId}:state`, "bidding")
+      await redisClient.del(`lobby:${playerInfo.lobbyId}:players`)
+
       await redisClient.sadd(
         `game:${playerInfo.lobbyId}:players`,
         ...playersInLobby.map(({ userId }) => {
@@ -148,6 +150,30 @@ io.on("connect", async (socket) => {
       )
       io.to(playerInfo.lobbyId).emit("startGame", await getPlayerInfoInRoom(`game:${playerInfo.lobbyId}:players`))
     }
+  })
+  socket.on("leaveGame", async () => {
+    console.log(`Socket ${socket.id} left game`)
+    const playerInfo = await getPlayerInfo()
+    const playersInLobby = await getPlayerInfoInRoom(`game:${playerInfo.gameId}:players`)
+    await Promise.all(
+      playersInLobby.map(async ({ userId }) => {
+        await redisClient.hdel(`playerInfo:${userId}`, "gameId")
+        await redisClient.hdel(`playerInfo:${userId}`, "connected")
+      })
+    )
+    await redisClient.del(`game:${playerInfo.gameId}:players`)
+    await redisClient.del(`game:${playerInfo.gameId}:state`)
+    io.to(playerInfo.gameId).emit("endGame")
+    io.to(playerInfo.gameId).emit("serverNotification", "A player has left the game and the game will be terminated")
+    await Promise.all(
+      playersInLobby.map(async ({ socketId, userId }) => {
+        const s = io.sockets.sockets.get(socketId)
+        if (s) {
+          s.emit("playerInfo", await getPlayerInfo(userId))
+          s.leave(playerInfo.gameId)
+        }
+      })
+    )
   })
   const handleLeaveRoom = async ({ roomId }) => {
     if (roomId) {

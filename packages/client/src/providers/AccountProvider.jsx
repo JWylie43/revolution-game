@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect, useContext } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
+import { ipAddress } from "../constants.js"
 
 export const AccountContext = createContext()
 export const useAccountProvider = () => {
@@ -9,7 +10,7 @@ export const AccountProvider = ({ children }) => {
   const [accountInfo, setAccountInfo] = useState({ loggedIn: null })
 
   const login = async ({ username, password, register }) => {
-    const response = await fetch(`http://192.168.86.41:4000/auth/${register ? "register" : "login"}`, {
+    const response = await fetch(`http://${ipAddress}:4000/auth/${register ? "register" : "login"}`, {
       method: "POST",
       credentials: "include",
       headers: {
@@ -30,7 +31,7 @@ export const AccountProvider = ({ children }) => {
   }
 
   const logout = async () => {
-    const logoutRequest = await fetch(`http://192.168.86.41:4000/auth/logout`, {
+    const logoutRequest = await fetch(`http://${ipAddress}:4000/auth/logout`, {
       method: "DELETE",
       credentials: "include"
     })
@@ -48,7 +49,7 @@ export const AccountProvider = ({ children }) => {
   useEffect(() => {
     const reloadSession = async () => {
       try {
-        const loginResponse = await fetch(`http://192.168.86.41:4000/auth/login`, {
+        const loginResponse = await fetch(`http://${ipAddress}:4000/auth/login`, {
           credentials: "include"
         })
         if (!loginResponse || !loginResponse.ok || loginResponse.status >= 400) {
